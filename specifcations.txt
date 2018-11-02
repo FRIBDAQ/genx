@@ -1,0 +1,204 @@
+Background
+==========
+
+At the NSCL we take a pile of event data.  These event data are analyzed online
+by SpecTcl and offline by Root.  A pile of work has to be done to unpack data
+for both of these when, in fact, the logic of the unpack is identical to both.
+What we need is a subsystem that allows one to use common, neutral code to do
+the unpack that can then be built for SpecTcl and for Root resulting
+in unpackers for both derived from common user written source code.
+
+The main impedance mismatch we need to solve are the fundamental differences
+between the internal unpacked data structures each of these frameworks uses:
+
+*  SpecTcl unpackers go to CTreeParameters for scalers and CTreeParameterArrays
+   for array objects.  CTreeParameters are a proxy for a double precision real
+   and CTreeParameterArrays are just arrays of CTreeParameters with the
+   potential to bias the index at something other than zero (e.g declare an
+   array with 10 elements with a starting index of 5.  Note that tree
+   parameters also carry metadata conisisting of typical range, recommended
+   binning and units.  SpecTcl uses these metadata to recommend axis
+   definitions for spectra involving those parameters.
+
+*  Root unpackers go to root trees that are made up of a hierarchy of
+   branches.  Root trees can essentially carry any data type;  At NSCL often
+   the top level data type is a class with members that at the lowest level
+   are, again doubles.
+
+
+One solution to this problem is to build a *small* application specific
+language that can describe structures that contain members that are
+
+*  scalars (doubles).
+*  arrays (of double)
+*  other structures previously defined.
+
+A pair of translators could then use this language to produce a set of nested
+structs of Tree parameters and their initialization and Root object definitions
+from which trees can be generated.  These structs/objects would be identical
+from the user's point of view and could be unpacked into by common code for
+SpecTcl and Root.
+
+The translation could be extensible in that if another analysis package ever
+gained prominance (e.g. JAW), a translator from the same internal
+representation could be created.
+
+
+
+Domain specific Language for structs:
+=====================================
+
+We need two main constructs:  Type definition and top level variable
+instantiation.
+
+Type definitions:
+~~~~~~~~~~~~~~~~~
+
+value name ?options...?
+   Options are:
+      -low  low axis limit suggestion .. defaults to 0
+      -high high axis limit suggestion .. defaults to 100
+      -bins suggested axis bins.
+      -units Units of measure to associate with the value.
+
+array name num-elements  ?options...?
+      -base - indexing base.  indices go from base to num-elements+base-1.
+      -low  low axis limit suggestion
+      -high high axis limit suggestion
+      -bins suggested axis bins.
+      -units Units of measure to associate with the value.
+
+
+struct name elements
+
+Each element can be either a value declaration, an array declaration or the
+name of an existing stuct or an array of struct instance:  e.g:
+
+struct astruct {
+  value avalue -high 4095 -bins 4096 -units channels
+  array anarray 100 -high 4095 -bins 4096 -units channels
+  struct somestruct astruct
+  structarray anotherstruct  astructa 100
+}
+
+This generates a struct/object that has the elements:
+
+avalue - a scaler value.
+anarray - a 100 element array
+astruct - an instance of the somestruct struct.
+astructa - an array of 100 instances of anotherstruct
+
+
+Instantiation
+~~~~~~~~~~~~~
+
+parameters and arrays that are not encapsulated in a struct are assumed to
+delare a global variable with that name.
+
+Structs and arrays of structs can be instantiated using the structinstance and
+structarrayinstance
+
+For example:
+
+parameter timestamp -units ticks;             # global variable named timestamp.
+array     barhits 10;                         # 10 el gbl array named barhits.
+
+struct detector {
+   parameter de -high 4095 -bins 4096 -units channels
+   parameter e  -high 4095 -bins 4096 -units channels
+   parameter t  -high 4096 -bins 4096 -units channels
+
+}
+
+struct computed {
+   parameter firstTime -high 4095 -bins 4096 -units channels
+   parameter totale    -units KeV
+}
+
+struct experiment {
+   struct      computed summary
+   structarray detector gammas[100]
+   parameter   elapsedTime -units seconds
+}
+
+#  Instantiations of struct:
+
+structinstance experiment exp
+structarrayinstance detector aux 25
+
+This produces the following variables that can be on the RHS or LHS of
+expressions:
+
+timestamp  - A scalar value.
+barhits    - A 10 element array of scalers:
+exp        - a struct with elements described below.
+aux        - an array of 25 structs of type detector. See below.
+
+The exp instance defines:
+
+exp.summary.firstTime
+exp.summary.totale
+exp.gammas - an array of structs that defines therefore:
+exp.gammas[i].de, exp.gammas[i].e, exp.gammas[i].t
+
+The Aux instance is an array 25 detector structs that therefore
+define:
+
+aux[i].de, aux[i].e, and aux[i].t
+
+
+
+Usage:
+======
+
+*   The user creates a file that defines the structure of the unpacked data using
+the domain specific data language previously described.
+*   The user runs a pair of processor programs.    Initially, two processor
+programs:  genspectclparams, and genrootparams are available.
+*   The ouptut of these translators go into separate directories.  One for the
+SpecTcl and one for the Root output.  Ouput consist of a header and a C++
+file.  The user has control over the basename (e.g. basename.h basename.cpp) so
+that several data structures can be defined.
+*   The user's unpacker includes the header as a library file (e.g. #include
+<basename.h>).
+*   The user's Makefile for SpecTcl selects the header from the SpecTcl output
+directory while that for Root (or at interpreter time) the one for Root is
+selected.
+
+
+The C++ code has the following entry points:
+
+*  basename::initialize()  - performs all the one-time initialization
+(e.g. creating/defining Root Tree objects, initializing tree parameters and so on).
+ 
+*  basename::preEvent()    - performs any actions needed prior to processing the
+event (not sure what these are but it seems a good idea to have this hook).
+*  basename::postEvent     - Performs any actions neede after unpacking an event
+(e.g. filling the root trees)
+
+
+Some trickery in the C++ file and headers will ensure that basename::initialize
+is automatically called (have to look up e.g. how std::cout come to be created
+something similar works here0.
+
+The user's unpacking code might look like:
+
+#include <basename.h>
+
+unpacker(void* pRawEvent)
+{
+   basename::preEvent();
+
+        // unpack pRawEvent into the structs/objects defined by basename.
+
+
+   basename::postEvent();
+}
+
+
+
+
+
+
+
+
