@@ -1,0 +1,140 @@
+#  Initial design musings.
+
+Translation takes place in two phases.  In the first phase, a Tcl script is
+used to generate a symbol table from the input file.  This symbol table is just
+an internal representation of the input file.  In the second stage a target
+specific translotor (e.g. Root or SpecTcl), produces a header file and some
+executable code.
+
+For example in SpecTcl, the header file is just a bunch of struct definitions
+whose terminal nodes are tree paramters and treeparameter arrays.  The
+executable file include code that initializes the tree parameters and arrays
+in the terminal nodes.
+
+On the other hand for Root the header file is a bunch of struct definitions
+that inherit from TObject and have all of the bits and pieces needed to ensure
+these structs can live in trees.  The executable file contains code to define a
+tree and its branches from these objects as well as to add the data in these
+objects to a tree after each event (maybe also stuff to initialize the terminal
+nodes to a useful NaN.
+
+The executable code file also contains the instances that were specified which
+the header simply defines as extern.
+
+# Intermediate representation.
+
+I think the intermediate representation can be a pair of dicts.  The first
+dict, let's call it structures contains a symbol table that defines the data
+structure definitions.  The second defines the instantiations of primitives and
+structs.
+
+
+## structures dict.
+
+Let's blue sky a bit the structures dictionary format.  It's going to be keyed
+on structure name, the contents of each key, however define the shape of the
+structure.  This is a dict which is keyed by field name.  The contents of each
+field key describe that structure field and is itself yet another dict. This
+dict has varying contents depending on the field type.  The field type, is the
+value of the 'type' key of this dict and can have one of the following values:
+
+*  value   - The field is a scalar.
+*  array   - the field is an array of scalars.
+*  struct  - the field is an nested struct.
+*  structarray - the field is an array of structs.
+
+Here are key/values or the various field types:
+
+### value - Scalar field
+
+| Key   |   Contains  |
+|-------|-------------|
+| type  | 'value'       |
+| low   | Suggested axis low limit value |
+| high  | Suggested axis high limit value |
+| bins  | Suggested axis bin count |
+| units | Units of measure. |
+
+### array - Array of scalar values:
+
+| Key  | Contains    |
+|------|-------------|
+| type | 'array'     |
+| low   | Suggested axis low limit value |
+| high  | Suggested axis high limit value |
+| bins  | Suggested axis bin count |
+| units | Units of measure. |
+| elements | Number of elements in the array |
+| base  | base index of the array |
+
+### struct - nested structure definition
+
+| Key  | Contains    |
+|------|-------------|
+| type | 'struct'    |
+| name | name of the nested structure |
+
+Note that no forward definitions are allowed (at this time).
+
+### structarray - array of nested structures
+
+| Key  | Contains   |
+|------|------------|
+| type | 'structarray' |
+| name | name of the nested structure |
+| elements | Number of elements in the array |
+
+Note that non-zero struct bases are not allowed for structure array fields.
+
+## instances dict
+
+This dict is keyed by the name of the instance that has been declared.  The
+value of each key is itself a dict.  The shape of that subdict depends on the
+type of the instance.  All of these subdicts have a 'type' field which contains
+the instance type and is one of:
+
+*  value - The instance is a scalar value.
+*  array - The instance is an array of scalar values.
+*  struct - The instance instantiates a structure.
+*  structarray - the instance instantiates a structure array.
+
+
+### value instance:
+
+| Key      | Contains     |
+|----------|--------------|
+| type     | 'value'      |
+| low   | Suggested axis low limit value |
+| high  | Suggested axis high limit value |
+| bins  | Suggested axis bin count |
+| units | Units of measure. |
+
+
+### array instance:
+
+| Key  | Contains    |
+|------|-------------|
+| type | 'array'     |
+| low   | Suggested axis low limit value |
+| high  | Suggested axis high limit value |
+| bins  | Suggested axis bin count |
+| units | Units of measure. |
+| elements | Number of elements in the array |
+| base  | base index of the array |
+
+
+### struct instance:
+
+| Key  | Contains    |
+|------|-------------|
+| type | 'struct'    |
+| name | name of the structure being instantiated |
+
+### structarray instance:
+
+
+| Key  | Contains   |
+|------|------------|
+| type | 'structarray' |
+| name | name of the nested structure |
+| elements | Number of elements in the array |
