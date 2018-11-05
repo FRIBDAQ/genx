@@ -98,3 +98,60 @@ snit::type value {
         ]
     }
 }
+##
+#  Array
+#     Can't use array because it's a tcl command that's used either by
+#     snit or tcltest.
+#
+
+snit::type Array {
+    option -base -default 0
+    option -low  -default 0
+    option -high -default 100
+    option -bins -default 100
+    option -units -default ""
+    variable elements 0
+   ##
+    #  The stuff we need for object registration
+    #
+    
+    typevariable  registrar
+    typemethod setRegistrar name {
+        set registrar $name 
+    }
+    typemethod register instance {
+        lappend $registrar $instance
+    }
+    
+    # construct an instance:
+    
+    constructor {size args} {
+        if {![string is integer -strict $size]} {
+            error "Array size $size is not an integer"
+        }
+        if {$size <= 0 } {
+            error "Array size $size is not > 0"
+        }
+        set elements $size
+        
+        $self configurelist $args
+        $type register $self
+    }
+    method dump {} {
+        return [dict create \
+            type array low $options(-low) high $options(-high)  \
+            bins $options(-bins) units $options(-units) elements $elements \
+        ]
+    }
+    
+}
+
+##
+#  set primitive Registrars:
+#     Sets the registrars for all primitive data type:
+#
+
+proc setPrimitiveRegistrars reg {
+    value setRegistrar $reg
+    Array setRegistrar $reg
+}

@@ -53,8 +53,10 @@ proc dumpRegistrar {} {
     }
     return $result
 }
+#------------------------------------------------------------------------------
+# value tests
 
-tcltest::test default_1 {Make a default single item} \
+tcltest::test v_default_1 {Make a default single item} \
 -cleanup {
     clearRegistrar
 } \
@@ -66,6 +68,98 @@ tcltest::test default_1 {Make a default single item} \
     dumpRegistrar;     # should get the dict back out.
 } -result [dict create a [dict create type value low 0 high 100 bins 100 units ""]]
 
+tcltest::test v_default_2 {Make two default items} \
+-cleanup {
+    clearRegistrar
+} \
+-setup {
+    value setRegistrar ::testRegistrar
+} \
+-body {
+    value b
+    value a
+    dumpRegistrar;       # Should get the two dicts in order b then a:
+} -result [dict create \
+    b [dict create type value low 0 high 100 bins 100 units ""]   \
+    a [dict create type value low 0 high 100 bins 100 units ""]]
+
+tcltest::test v_specify_1 {Specify value metadata:} \
+-cleanup {
+    clearRegistrar
+} \
+-setup {
+    value setRegistrar ::testRegistrar
+} \
+-body {
+    value a -low 100 -high 200 -bins 201 -units made-up
+    dumpRegistrar;
+} -result [dict create  \
+    a [dict create type value low 100 high 200 bins 201 units "made-up"]]
 
 
+#-------------------------------------------------------------------------------
+#   Array tests:
+
+tcltest::test array_default_1 {Instantiate an array with default specifications:} \
+-cleanup {
+    clearRegistrar
+} \
+-setup {
+    Array setRegistrar ::testRegistrar
+} \
+-body {
+    Array a 10
+    dumpRegistrar
+} -result [dict create                                                    \
+     a [dict create type array low 0 high 100 bins 100 units "" elements 10] \
+    ]
+
+
+tcltest::test array_default_2 {Make a couple of arrays with default specs:} \
+-cleanup {
+    clearRegistrar
+} \
+-setup {
+    Array setRegistrar ::testRegistrar
+} \
+-body {
+    Array b 10
+    Array a 10
+    dumpRegistrar
+} -result [dict create \
+    b [dict create type array low 0 high 100 bins 100 units "" elements 10] \
+    a [dict create type array low 0 high 100 bins 100 units "" elements 10] \
+]
+
+tcltest::test array_specify_1 {Specify all aspects of an array} \
+-cleanup {
+    clearRegistrar
+} \
+-setup {
+    Array setRegistrar ::testRegistrar
+} \
+-body {
+    Array a 15 -low -10 -high 10 -bins 21 -units "megafurlongs"
+    dumpRegistrar
+} -result [dict create                                            \
+    a [dict create type array low -10 high 10 bins 21 units megafurlongs elements 15] \
+]
+
+tcltest::test mixed_default_1 {Make var and array mixed with default instantiations} \
+-cleanup {
+    clearRegistrar
+} \
+-setup {
+    setPrimitiveRegistrars ::testRegistrar
+} \
+-body {
+    value a
+    Array b 10
+    
+    dumpRegistrar
+} -result [dict create     \
+    a [dict create type value low 0 high 100 bins 100 units ""]     \
+    b [dict create type array low 0 high 100 bins 100 units "" elements 10] \
+]
+#-------------------------------------------------------------------------------
 tcltest::cleanupTests
