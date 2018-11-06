@@ -3,11 +3,16 @@
 #include "datadecl.tab.h"
 #include <stdlib.h>
 extern int yylex();
+extern unsigned lineNum;
 %}
 %option noyywrap
 %%
 
-[ \t\n]*          {}                        
+\/\/.*         {}
+
+[ \t]*          {}                        
+
+\n              {lineNum++;}
        
 =               { return EQUALS;}
 value           { return VALUE;}

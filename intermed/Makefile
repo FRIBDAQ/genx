@@ -1,7 +1,7 @@
 all: parser
 
-parser: driver.o lex.yy.o datadecl.tab.o instance.o
-	$(CXX) -o parser  driver.o instance.o lex.yy.o datadecl.tab.o
+parser: driver.o lex.yy.o datadecl.tab.o instance.o definedtypes.o
+	$(CXX) -o parser  driver.o instance.o definedtypes.o lex.yy.o datadecl.tab.o
 
 driver.o: driver.cpp datadecl.tab.h instance.h
 	$(CXX) -c driver.cpp
@@ -23,6 +23,9 @@ lex.yy.c: datadecl.l instance.h
 
 instance.o: instance.cpp instance.h
 	$(CXX) -c instance.cpp
+
+definedtypes.o: definedtypes.cpp definedtypes.h instance.h
+	$(CXX) -c definedtypes.cpp
 
 clean:
 	rm -f *.o datadecl.tab.h *.c

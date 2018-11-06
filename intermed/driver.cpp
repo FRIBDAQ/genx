@@ -4,11 +4,26 @@
 #include <stdlib.h>
 #include <list>
 #include "instance.h"
+#include "definedtypes.h"
+
 #include "datadecl.tab.h"
 
 
 
 extern FILE* yyin;
+unsigned lineNum(1);
+
+
+static void dumpTypes()
+{
+    std::cout << "Defined data types: \n";
+    for (std::list<TypeDefinition>::const_iterator p = typeList.begin();
+         p != typeList.end(); p++) {
+        
+        std::cout << "-------------------------\n";
+        std::cout << p->toString() << std::endl;
+    }
+}
 
 static void dumpInstances()
 {
@@ -37,6 +52,7 @@ int main(int argc, char** argv)
     int result = yyparse();
     int exitCode = result ? EXIT_FAILURE : EXIT_SUCCESS;
     if (!result) {
+        dumpTypes();
         dumpInstances();
     }
     exit(exitCode);
@@ -48,6 +64,6 @@ int main(int argc, char** argv)
  **/
 void yyerror(const char *s)
 {
-    std::cerr << "*** error: " << s << std::endl;
+    std::cerr << "*** error: " << lineNum << " : " << s << std::endl;
     exit(EXIT_FAILURE);
 }
