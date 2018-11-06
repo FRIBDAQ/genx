@@ -54,7 +54,7 @@ struct_member: value | array | substruct | substruct_array
 
 value: VALUE NAME valueoptions
     ;
-valueoptions:   valueoption | valueoption valueoptions
+valueoptions:   ENDLINE | valueoption | valueoption valueoptions
     ;
 valueoption: LOW EQUALS NUMBER | HIGH EQUALS NUMBER | BINS EQUALS NUMBER | UNITS EQUALS NAME
     ;

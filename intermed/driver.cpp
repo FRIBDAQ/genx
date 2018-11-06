@@ -19,8 +19,8 @@ int main(int argc, char** argv)
     
     yyin = declarations;              // Set the FLEX input stream:
     int result = yyparse();
-    std::cerr << "yyparse result: " << result << std::endl;
-    exit(EXIT_SUCCESS);
+    int exitCode = result ? EXIT_FAILURE : EXIT_SUCCESS;
+    exit(exitCode);
 }
 
 
