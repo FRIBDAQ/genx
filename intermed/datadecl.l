@@ -3,7 +3,7 @@
 #include <stdlib.h>
 extern int yylex();
 %}
-
+%option noyywrap
 %%
 [ \t]*          {}                        
 [\n]*              { return ENDLINE;}         
