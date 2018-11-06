@@ -1,0 +1,25 @@
+
+struct a {
+    value a
+    value b low=-1.5 high=1.5 units=cm
+}
+struct b {
+    array a[100]
+    array b[200]
+}
+
+struct c {
+    struct a a
+    structarray b b[10]
+    value c units=megawidgets
+    array d[100]
+}
+
+
+value b low=-100.5 high=100 bins=200 units=cm
+value a
+array c[100]
+array d[5] units=furlongs
+
+structinstance c mystuff
+structarrayinstance b morestuff[100]

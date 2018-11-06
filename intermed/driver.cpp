@@ -1,8 +1,24 @@
-#include "datadecl.tab.h"
+#include <string>
 #include <stdio.h>
 #include <iostream>
 #include <stdlib.h>
+#include <list>
+#include "instance.h"
+#include "datadecl.tab.h"
+
+
+
 extern FILE* yyin;
+
+static void dumpInstances()
+{
+    std::cout << "Instancelist dump: \n";
+    for (std::list<Instance>::iterator p = instanceList.begin(); p != instanceList.end(); p++) {
+        std::cout << "-----------------------------\n";
+        std::cout << p->toString();
+    }
+}
+
 int main(int argc, char** argv)
 {
     if (argc != 2) {
@@ -20,6 +36,9 @@ int main(int argc, char** argv)
     yyin = declarations;              // Set the FLEX input stream:
     int result = yyparse();
     int exitCode = result ? EXIT_FAILURE : EXIT_SUCCESS;
+    if (!result) {
+        dumpInstances();
+    }
     exit(exitCode);
 }
 
