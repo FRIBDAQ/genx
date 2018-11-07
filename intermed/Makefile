@@ -1,4 +1,4 @@
-all: parser
+all: parser desertest
 
 parser: driver.o lex.yy.o datadecl.tab.o instance.o definedtypes.o
 	$(CXX) -o parser  driver.o instance.o definedtypes.o lex.yy.o datadecl.tab.o
@@ -27,6 +27,12 @@ instance.o: instance.cpp instance.h
 definedtypes.o: definedtypes.cpp definedtypes.h instance.h
 	$(CXX) -c definedtypes.cpp
 
+desertest: deserializetest.o definedtypes.o instance.o
+	$(CXX) -o desertest deserializetest.o definedtypes.o instance.o
+
+deserializetest.o: deserializetest.cpp instance.h definedtypes.h
+
+
 clean:
-	rm -f *.o datadecl.tab.h *.c
+	rm -f parser desertest *.o datadecl.tab.h *.c
 

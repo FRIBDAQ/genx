@@ -27,6 +27,7 @@
 #include <list>
 #include <string>
 #include <ostream>
+#include <istream>
 
 // At this point only structures are allowed as defined types.
 // Fundamentally a structure is a named entity with a list of fields.
@@ -41,6 +42,7 @@ struct TypeDefinition {
     FieldList   s_fields;
     std::string toString() const;
     std::ostream& serialize(std::ostream& f) const;
+    std::istream& deserialize(std::istream& f);
 };
 
 // These are operations needed by struct definers:
@@ -51,7 +53,7 @@ void addField(const Instance& fieldDef);           // Add field to last structur
 void setLastFieldOptions(const ValueOptions& opts); // Add option to last field added.
 bool structExists(const char* name);
 std::ostream& serializeTypes(std::ostream& f) ;
-
+std::istream& deserializeTypes(std::istream& f, std::list<TypeDefinition>& tlist);
 
 extern std::list<TypeDefinition> typeList;
 extern Instance currentField;

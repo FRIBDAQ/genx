@@ -55,6 +55,7 @@ struct ValueOptions {
     }
     std::string toString() const;
     std::ostream& serialize(std::ostream& f) const;
+    std::istream& deserialize(std::istream& f);
 };
 
 // Describes an instance.  note that not all fields are used for all types.
@@ -67,11 +68,14 @@ struct Instance {
     ValueOptions   s_options;
     std::string toString() const;
     std::ostream& serialize(std::ostream& f) const;
+    std::istream& deserialize(std::istream& f);
 };
 
 void addInstance(const Instance& anInstance);
 std::ostream& serializeInstances(std::ostream& f);
 std::ostream& serializeString(std::ostream& f, const std::string& s);
+std::string deserializeString(std::istream& f);
+std::istream& deserializeInstances(std::istream& f, std::list<Instance>& iList);
 
 // Exported data:
 // TODO:  the datatype definition API is much better..we should do something like

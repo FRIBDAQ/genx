@@ -52,8 +52,6 @@ int main(int argc, char** argv)
     int result = yyparse();
     int exitCode = result ? EXIT_FAILURE : EXIT_SUCCESS;
     if (!result) {
-        dumpTypes();
-        dumpInstances();
         serializeTypes(std::cout);
         serializeInstances(std::cout);
     }

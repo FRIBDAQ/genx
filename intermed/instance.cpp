@@ -24,6 +24,7 @@
 
 #include "instance.h"
 #include <stdlib.h>
+#include <string.h>
 #include <sstream>
 #include <set>
 
@@ -93,7 +94,7 @@ ValueOptions::toString() const
     return sresult.str();
 }
 
-// Instance Methods:
+
 
 /**
  * ValueOptions::serialize
@@ -113,6 +114,25 @@ ValueOptions::serialize(std::ostream& f) const
     return serializeString(f, s_units);
 }
 
+/**
+ * ValueOptions::deserialize
+ *    Given a valueoption and a file positioned at a serialized value option,
+ *    restores the value option from file. Prior data in the object are destroyed.
+ *
+ * @param f - the input stream
+ * @return std::istream& f
+ */
+std::istream&
+ValueOptions::deserialize(std::istream& f)
+{
+    f.read(reinterpret_cast<char*>(&s_low), sizeof(double));
+    f.read(reinterpret_cast<char*>(&s_high), sizeof(double));
+    f.read(reinterpret_cast<char*>(&s_bins), sizeof(unsigned));
+    s_units = deserializeString(f);
+    
+    return f;
+}
+// Instance Methods:
 /**
  * Instance::toSTring
  *    Produce a string representation of an Instance struct.
@@ -171,6 +191,24 @@ Instance::serialize(std::ostream& f) const
     // The options object.
     
     return s_options.serialize(f);
+}
+/**
+ * Instance::deserialize
+ *   Deserialize from a stream into this object.
+ *
+ * @param f - the input stream to deserialize from.
+ * @return std::istream& f again.
+ */
+std::istream&
+Instance::deserialize(std::istream& f)
+{
+    f.read(reinterpret_cast<char*>(&s_type), sizeof(InstanceType));
+    s_name = deserializeString(f);
+    s_typename = deserializeString(f);
+    f.read(reinterpret_cast<char*>(&s_elementCount), sizeof(unsigned));
+    s_options.deserialize(f);
+    
+    return f;
 }
 /*-----------------------------------------------------------------------------
  *  API presented to the parser.
@@ -239,5 +277,46 @@ serializeInstances(std::ostream& f)
         
         p->serialize(f);
     }
+    return f;
+}
+/**
+ * deserializeString
+ *    Given a stream positioned at a serialized std::string recovers that
+ *    string from file and returns it:
+ *
+ *   @param f - input file from which deserialization gets done.
+ *   @return std::string - The recovered string.
+ */
+std::string
+deserializeString(std::istream& f)
+{
+    unsigned n;
+    f.read(reinterpret_cast<char*>(&n), sizeof(unsigned));
+ 
+    char recoveredString[n+1];
+    memset(recoveredString, 0, n+1);  /// zero fill the string.
+    f.read(recoveredString, n);
+ 
+    return std::string(recoveredString);   
+}
+/**
+ * deserializeInstances
+ *    Recovers the instance list from file.
+ *
+ *  @param f - stream to recover it from.
+ *  @param iList - reference to the instance list. Deserialized instances are _appended_
+ *  @return istream& - f again
+ */
+std::istream&
+deserializeInstances(std::istream& f, std::list<Instance>& iList)
+{
+    unsigned n;
+    f.read(reinterpret_cast<char*>(&n), sizeof(unsigned));
+    for (int i =0; i < n; i++) {
+        Instance inst;
+        inst.deserialize(f);
+        iList.push_back(inst);
+    }
+    
     return f;
 }

@@ -124,6 +124,29 @@ TypeDefinition::serialize(std::ostream& f) const
     return f;
 }
 /**
+ * TypeDefinition::deserialize
+ *   Deserialize from a stream into us;
+ *   Note that any prior fields are removed.
+ *
+ * @param f - the stream from which we're deserializing.
+ * @return istream& - f again.
+ */
+std::istream&
+TypeDefinition::deserialize(std::istream& f)
+{
+    s_fields.clear();               // Empty set of fields.
+    s_typename = deserializeString(f);
+    unsigned nFields;
+    f.read(reinterpret_cast<char*>(&nFields), sizeof(unsigned));
+    for (int i = 0; i < nFields; i++) {
+        Instance inst;
+        inst.deserialize(f);
+        s_fields.push_back(inst);
+    }
+    
+    return f;
+}
+/**
  * newStruct:
  *   - Checks that the type is not a duplicate and yyerror's if it is.
  *   - Adds a instance to the typeList
@@ -225,6 +248,31 @@ serializeTypes(std::ostream& f)
     for (std::list<TypeDefinition>::const_iterator p = typeList.begin();
          p != typeList.end(); p++) {
         p->serialize(f);
+    }
+    return f;
+}
+/**
+ * deserializeTypes
+ *    Deserializes the type list into a type list.  Note that if the user
+ *    wants a typename set they have to then construct it from the
+ *    list.
+ *
+ *  @param f - references the stream to be read from
+ *  @param tlist - References the target type list.  If there are existing
+ *                 list elements the deserialized list appends to them.
+ *              
+ */
+std::istream&
+deserializeTypes(std::istream& f, std::list<TypeDefinition>& tlist)
+{
+    // Get the number of types to deserialize:
+    
+    unsigned n;
+    f.read(reinterpret_cast<char*>(&n), sizeof(n));
+    for (int i =0; i < n; i++) {
+        TypeDefinition t;
+        t.deserialize(f);
+        tlist.push_back(t);
     }
     return f;
 }
