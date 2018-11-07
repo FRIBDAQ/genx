@@ -70,23 +70,7 @@ findInstance(std::string name)
     }
     yyerror("BUGBUG - searched for nonexistent instance name");
 }
-/**
- * serializeString
- *    Serializes an std::string.  The string is stored as an unsigned character
- *    count followed by the string data itself.
- *
- *  @param f - the stream to which the string is being serialized.
- *  @param s - the string to serialize.
- *  @return std::ostream& f again.
- */
-static std::ostream&
-serializeString(std::ostream& f, const std::string& s)
-{
-    unsigned size = s.size();
-    f.write(reinterpret_cast<char*>(&size), sizeof(unsigned));
-    f.write(s.c_str(), size);
-    return f;
-}
+
 
 /*----------------------------------------------------------------------------
  *  Method implementations.
@@ -219,6 +203,24 @@ addInstance(const Instance& inst)
     }
 }
 /**
+ * serializeString
+ *    Serializes an std::string.  The string is stored as an unsigned character
+ *    count followed by the string data itself.
+ *
+ *  @param f - the stream to which the string is being serialized.
+ *  @param s - the string to serialize.
+ *  @return std::ostream& f again.
+ */
+std::ostream&
+serializeString(std::ostream& f, const std::string& s)
+{
+    unsigned size = s.size();
+    f.write(reinterpret_cast<char*>(&size), sizeof(unsigned));
+    f.write(s.c_str(), size);
+    return f;
+}
+
+/**
  * serializeInstances
  *    Serializes all of the instances to an output stream.
  *    We output an unsigned that contains the number of instances and then
@@ -237,4 +239,5 @@ serializeInstances(std::ostream& f)
         
         p->serialize(f);
     }
+    return f;
 }

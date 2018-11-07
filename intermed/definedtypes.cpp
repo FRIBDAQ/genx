@@ -37,16 +37,7 @@ extern void yyerror(const char* msg);
  *  private utilities
  */
 
-/**
- * @param name - name of a struct.
- * @return bool - True if a structure by that name already exists.
- */
 
-bool
-structExists(const char* name)
-{
-    return typeNames.count(std::string(name)) > 0;    
-}
 /**
  * findDefinition
  *   @param defname
@@ -92,6 +83,8 @@ findField(TypeDefinition& t, const std::string& name)
  *   Public entries;
  */
 
+/** Object methods for the TypeDefinition:
+
 /**
  * TypeDefinition::toString
  *    Create a string representation of a struct so that it can be output
@@ -110,6 +103,26 @@ TypeDefinition::toString() const
     return result.str();
 }
 
+/**
+ * TypeDefinition::serialize
+ *     Produce a binary serialization of the type.
+ *     This is a serializationof the typename, a count of the number of fields
+ *     followed by asking each field to serialize itself.
+ *
+ *  @param f - references the stream to output the data to.
+ *  @return ostream& -  f again.
+ */
+std::ostream&
+TypeDefinition::serialize(std::ostream& f) const
+{
+    serializeString(f, s_typename);
+    unsigned n = s_fields.size();
+    f.write(reinterpret_cast<char*>(&n), sizeof(unsigned));
+    for (FieldList::const_iterator p = s_fields.begin(); p != s_fields.end(); p++) {
+        p->serialize(f);
+    }
+    return f;
+}
 /**
  * newStruct:
  *   - Checks that the type is not a duplicate and yyerror's if it is.
@@ -167,6 +180,7 @@ addField(const Instance& fieldDef)
         fieldNames.insert(fieldDef.s_name);
     }
 }
+
 /**
  * setLastFieldOptions
  *   Because of the way productions pop in the bison grammer, we don't know
@@ -180,4 +194,37 @@ void
 setLastFieldOptions(const ValueOptions& opts)
 {
     typeList.back().s_fields.back().s_options = opts;
+}
+
+/**
+ * @param name - name of a struct.
+ * @return bool - True if a structure by that name already exists.
+ */
+
+bool
+structExists(const char* name)
+{
+    return typeNames.count(std::string(name)) > 0;    
+}
+
+
+
+/**
+ * serializeTypes
+ *    serializes the type list.  This is done by writing the number of types
+ *    defined, then serializing each type in typeList.
+ *
+ *  @param f - references the stream to which the serialization is being done.
+ *  @return std::ostream& - f again.
+ */
+std::ostream&
+serializeTypes(std::ostream& f)
+{
+    unsigned n = typeList.size();
+    f.write(reinterpret_cast<char*>(&n), sizeof(unsigned));
+    for (std::list<TypeDefinition>::const_iterator p = typeList.begin();
+         p != typeList.end(); p++) {
+        p->serialize(f);
+    }
+    return f;
 }

@@ -26,7 +26,7 @@
 #include "instance.h"           // There's overlap in the needs.
 #include <list>
 #include <string>
-
+#include <ostream>
 
 // At this point only structures are allowed as defined types.
 // Fundamentally a structure is a named entity with a list of fields.
@@ -40,6 +40,7 @@ struct TypeDefinition {
     std::string s_typename;
     FieldList   s_fields;
     std::string toString() const;
+    std::ostream& serialize(std::ostream& f) const;
 };
 
 // These are operations needed by struct definers:
@@ -49,6 +50,9 @@ void newStruct(const char* structName);
 void addField(const Instance& fieldDef);           // Add field to last structure.
 void setLastFieldOptions(const ValueOptions& opts); // Add option to last field added.
 bool structExists(const char* name);
+std::ostream& serializeTypes(std::ostream& f) ;
+
+
 extern std::list<TypeDefinition> typeList;
 extern Instance currentField;
 

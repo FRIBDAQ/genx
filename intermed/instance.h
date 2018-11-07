@@ -70,8 +70,8 @@ struct Instance {
 };
 
 void addInstance(const Instance& anInstance);
-extern std::ostream& serializeInstances(std::ostream& f);
-
+std::ostream& serializeInstances(std::ostream& f);
+std::ostream& serializeString(std::ostream& f, const std::string& s);
 
 // Exported data:
 // TODO:  the datatype definition API is much better..we should do something like

@@ -54,6 +54,7 @@ int main(int argc, char** argv)
     if (!result) {
         dumpTypes();
         dumpInstances();
+        serializeTypes(std::cout);
         serializeInstances(std::cout);
     }
     exit(exitCode);
