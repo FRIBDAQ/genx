@@ -54,6 +54,7 @@ struct ValueOptions {
         s_units = "";
     }
     std::string toString() const;
+    std::ostream& serialize(std::ostream& f) const;
 };
 
 // Describes an instance.  note that not all fields are used for all types.
@@ -65,10 +66,18 @@ struct Instance {
     unsigned       s_elementCount;
     ValueOptions   s_options;
     std::string toString() const;
+    std::ostream& serialize(std::ostream& f) const;
 };
 
 void addInstance(const Instance& anInstance);
+extern std::ostream& serializeInstances(std::ostream& f);
+
+
+// Exported data:
+// TODO:  the datatype definition API is much better..we should do something like
+//        that instead of exposing these globals.
 
 extern Instance currentInstance;
 extern std::list<Instance> instanceList;
+
 #endif

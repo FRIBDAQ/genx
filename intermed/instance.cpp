@@ -47,8 +47,59 @@ Instance currentInstance;                  // Instance beingcreated.
 
 
 static std::set<std::string> instanceNames;      // Quicker check for dups:
-// Create string representation of Value Options:
 
+
+/*-----------------------------------------------------------------------------
+ * Static utilities:
+ */
+
+/**
+ * findInstance
+ *    Return a reference to the instance with the specified instance name.
+ *    The caller must ensure this exists prior to calling.
+ *
+ *  @return const Instance&
+ */
+static const Instance&
+findInstance(std::string name)
+{
+    for (std::list<Instance>::iterator p = instanceList.begin(); p!= instanceList.end(); p++) {
+        if (p->s_name == name) {
+            return *p;
+        }
+    }
+    yyerror("BUGBUG - searched for nonexistent instance name");
+}
+/**
+ * serializeString
+ *    Serializes an std::string.  The string is stored as an unsigned character
+ *    count followed by the string data itself.
+ *
+ *  @param f - the stream to which the string is being serialized.
+ *  @param s - the string to serialize.
+ *  @return std::ostream& f again.
+ */
+static std::ostream&
+serializeString(std::ostream& f, const std::string& s)
+{
+    unsigned size = s.size();
+    f.write(reinterpret_cast<char*>(&size), sizeof(unsigned));
+    f.write(s.c_str(), size);
+    return f;
+}
+
+/*----------------------------------------------------------------------------
+ *  Method implementations.
+ */
+
+// ValueOptions methods:
+
+/**
+ * ValueOptions::toString
+ *    Create a string representation of the value options struct.
+ *
+ *   @return std::string
+ */
 std::string
 ValueOptions::toString() const
 {
@@ -58,8 +109,32 @@ ValueOptions::toString() const
     return sresult.str();
 }
 
-// Create string representation of an instance:
+// Instance Methods:
 
+/**
+ * ValueOptions::serialize
+ *    Produce a serialized version of a value options object.  This is just
+ *    going to be a binary serialization of the members.   For strings
+ *    we output a counted string using serializeString
+ *
+ *  @param f - References the output stream to which the serialization is done.
+ *  @return f - References the output stream passed in.
+ */
+std::ostream&
+ValueOptions::serialize(std::ostream& f) const
+{
+    f.write(reinterpret_cast<const char*>(&s_low), sizeof(double));
+    f.write(reinterpret_cast<const char*>(&s_high), sizeof(double));
+    f.write(reinterpret_cast<const char*>(&s_bins), sizeof(unsigned));
+    return serializeString(f, s_units);
+}
+
+/**
+ * Instance::toSTring
+ *    Produce a string representation of an Instance struct.
+ *
+ * @return std::string
+ */
 std::string
 Instance::toString() const
 {
@@ -90,23 +165,41 @@ Instance::toString() const
     
     return sresult.str();
 }
-
-// Locate an instance with the specified name return a reference to that
-// instance.   The caller must have checked this instance exists.
-
-static const Instance&
-findInstance(std::string name)
+/**
+ * Instance::serialize
+ *
+ *   Serializes the object to a stream.  The members are serialized independently
+ *   and the s_options.serialize method is used for the value options.
+ *
+ * @param f - references the stream to which serialization is going to be done.
+ * @return std::ostream& f again.
+ */
+std::ostream&
+Instance::serialize(std::ostream& f) const
 {
-    for (std::list<Instance>::iterator p = instanceList.begin(); p!= instanceList.end(); p++) {
-        if (p->s_name == name) {
-            return *p;
-        }
-    }
-    yyerror("BUGBUG - searched for nonexistent instance name");
+    // our primitives:
+    
+    f.write(reinterpret_cast<const char*>(&s_type), sizeof(InstanceType));
+    serializeString(f, s_name);
+    serializeString(f, s_typename);
+    f.write(reinterpret_cast<const char*>(&s_elementCount), sizeof(unsigned));
+    
+    // The options object.
+    
+    return s_options.serialize(f);
 }
+/*-----------------------------------------------------------------------------
+ *  API presented to the parser.
+ */
 
-//  Add an instance first checking to see if it's a duplicate.
 
+/**
+ *  addInstance
+ *     Adds a new instance to the instance list; An error is thrown if
+ *     the instance already exists.
+ *
+ * @param inst - instance to add.
+ */
 void
 addInstance(const Instance& inst)
 {
@@ -123,5 +216,25 @@ addInstance(const Instance& inst)
     } else {
         instanceList.push_back(inst);
         instanceNames.insert(inst.s_name);
+    }
+}
+/**
+ * serializeInstances
+ *    Serializes all of the instances to an output stream.
+ *    We output an unsigned that contains the number of instances and then
+ *    just serialize each instance:
+ *
+ *    @param f - the output stream to which the serialization is done.
+ *    @return std::ostream& f again.
+ */
+std::ostream&
+serializeInstances(std::ostream& f)
+{
+    unsigned n = instanceList.size();
+    f.write(reinterpret_cast<char*>(&n), sizeof(unsigned));
+    for (std::list<Instance>::const_iterator p = instanceList.begin();
+         p != instanceList.end(); p++) {
+        
+        p->serialize(f);
     }
 }

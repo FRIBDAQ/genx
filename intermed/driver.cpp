@@ -16,21 +16,21 @@ unsigned lineNum(1);
 
 static void dumpTypes()
 {
-    std::cout << "Defined data types: \n";
+    std::cerr << "Defined data types: \n";
     for (std::list<TypeDefinition>::const_iterator p = typeList.begin();
          p != typeList.end(); p++) {
         
-        std::cout << "-------------------------\n";
-        std::cout << p->toString() << std::endl;
+        std::cerr << "-------------------------\n";
+        std::cerr << p->toString() << std::endl;
     }
 }
 
 static void dumpInstances()
 {
-    std::cout << "Instancelist dump: \n";
+    std::cerr << "Instancelist dump: \n";
     for (std::list<Instance>::iterator p = instanceList.begin(); p != instanceList.end(); p++) {
-        std::cout << "-----------------------------\n";
-        std::cout << p->toString();
+        std::cerr << "-----------------------------\n";
+        std::cerr << p->toString();
     }
 }
 
@@ -54,6 +54,7 @@ int main(int argc, char** argv)
     if (!result) {
         dumpTypes();
         dumpInstances();
+        serializeInstances(std::cout);
     }
     exit(exitCode);
 }
