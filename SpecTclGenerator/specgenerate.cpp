@@ -26,6 +26,8 @@
 #include <stdlib.h>
 #include <libgen.h>
 #include <string.h>
+#include <math.h>
+
 
 const char* programVersionString("specgenerate version 1.0 (c) NSCL/FRIB");
 
@@ -127,6 +129,7 @@ writeTypeDefinition(std::ostream& f, const TypeDefinition& t)
 static void
 writeTypeDefs(std::ostream& f, const std::list<TypeDefinition>& types)
 {
+    f << "\n/** Data Structure definitions **/\n\n";
     for (std::list<TypeDefinition>::const_iterator p = types.begin();
          p != types.end(); p++) {
         
@@ -179,11 +182,14 @@ writeExternDecl(std::ostream& f, const Instance& i)
 static void
 writeExterns(std::ostream& f, const std::list<Instance>& instances)
 {
+    f << "\n/** Actual instances that your unpacker fills in **/\n\n";
+    f << "#ifndef IMPLEMENTATION_MODULE\n";
     for (std::list<Instance>::const_iterator p = instances.begin();
          p != instances.end(); p++) {
         writeExternDecl(f, *p);
     }
     f << std::endl;
+    f << "#endif";
 }
 /**
  * writeApi
@@ -195,7 +201,19 @@ writeExterns(std::ostream& f, const std::list<Instance>& instances)
 static void
 writeApi(std::ostream& f)
 {
+    // There are three entry points that are provided.  Some targets
+    // may use some others others.  These are:
+    //   Initialize - one-time initialization (e.g. do it in CreateAnalysisPipeline)
+    //   SetupEvent - Any setup required prior to event processing (do in unpack code).
+    //   CommitEvent - Any actions required after unpacking (e.g. root tree fills) do
+    //                  in the unpack code as well.
+    //  Here we just provide prototypes for these:
     
+    f << "\n/** API functions callable by the user **/\n\n";
+    f << "void Initialize();\n";
+    f << "void SetupEvent();\n";
+    f << "void CommitEvent();\n";
+    f << "\n";
 }
 /**
  * generateHeader
@@ -235,7 +253,7 @@ static void generateHeader(
    
     // Everything we create is inside a namespace: nsname:
     
-    f << "\nnamespace nsname {\n\n";
+    f << "\nnamespace " << nsname  << "  {\n\n";
     
     writeTypeDefs(f, types);
     writeExterns(f, instances);
@@ -250,7 +268,250 @@ static void generateHeader(
     
     f.close();
 }
-
+/**
+ * emitStructArrayInitialization
+ *    Emit the code needed to initialize an array of structs.
+ *
+ *  @param f - output stream to which code is emitted.
+ *  @param i - instance that must be a structarray.
+ *
+ */
+static void
+emitStructArrayInitialization(std::ostream& f, const Instance& i)
+{
+    // Figure out how many digits of 'index' we need:
+    
+    int digits = (log10(i.s_elementCount) + 1);
+    
+    // Initialize in a for loop.
+    
+    f << "   for (int i = 0; i < " <<  i.s_elementCount << "; i++) {\n";
+    f << "      char index[" << digits + 1 << "];\n";
+    f << "      sprintf(index, \"%0" << digits << "d\", i);\n";
+    f << "      std::string elname = name + \".\" +  \"" << i.s_name << ".\" + index;\n";
+    f << "      " << i.s_name << "[i].Initialize(elname.c_str());\n";
+    f << "   }\n";
+}
+/**
+ * emitFieldInitialization
+ *    Emits the initialization calls required for each field.
+ *
+ *  @param f - output stream to which the code is emitted.
+ *  @param i - references the field description being initialized.
+ *  @param name -base name for initialization.
+ *
+ *  values - get initialized using CTreeParameter::Initialize(name, channels, low, high, units)
+ *  arrays -get initialized using CTreeParameterArray::Initialize(name, low, high, units, elements, 0);
+ *  structs - just call the struct's initializer.
+ *  structarrays - call the struct's initializer once for each element.
+ *
+ *  @note the function we're generating is parameterized by 'basename' which
+ *        is used to derive the names of things being initialized.
+ */
+static void
+emitFieldInitialization(std::ostream& f, const Instance& i)
+{
+    switch (i.s_type)
+    {
+    case value:
+        f << "   " << i.s_name << ".Initialize(name + '.' + \"" << i.s_name << "\""
+          << ", " << i.s_options.s_bins
+          << ", " << i.s_options.s_low
+          << ", " << i.s_options.s_high
+          << ", \"" << i.s_options.s_units << "\");\n";
+        break;
+    case array:
+        f << "   " << i.s_name <<".Initialize(name + '.' + \"" << i.s_name << "\""
+        << ", " << i.s_options.s_low
+        << ", " << i.s_options.s_high
+        << ", " << i.s_options.s_bins
+        << ", \"" << i.s_options.s_units << "\""
+        << ", "  << i.s_elementCount
+        << ", 0);\n";
+        break;
+    case structure:
+        f << "   " << i.s_name << ".Initialize((name + '.' + \"" << i.s_name << "\").c_str()"
+        << ");\n";
+        break;
+    case structarray:
+        emitStructArrayInitialization(f, i);
+        break;
+    default:
+        std::cerr << "*BUG field initialization generation - unknown type: " << i.s_type;
+        std::cerr << i.toString() << std::endl;
+        exit(EXIT_FAILURE);
+    }
+}
+/**
+ * emitInitializeMethods
+ *     Writes the Initialize method for each data type.
+ *     This is done for each derived data type
+ *
+ * @param f - output stream to which the code is written.
+ * @param ns - Namespace in which everything lives.
+ * @param types - List of derived types
+ */
+static void
+emitInitializeMethods(
+   std::ostream& f, const std::string& ns, const std::list<TypeDefinition>& types
+)
+{
+    for (std::list<TypeDefinition>::const_iterator p = types.begin();
+         p != types.end(); p++) {
+        
+        f << "\n";
+        f << "void " << ns << "::" << p->s_typename << "::Initialize(const char* basename)\n";
+        f << "{\n";
+        f << "   std::string name(basename);\n";
+        for (FieldList::const_iterator pf = p->s_fields.begin();
+             pf != p->s_fields.end(); pf++) {
+            
+            emitFieldInitialization(f, *pf);
+        }
+        
+        
+        f << "}\n";
+    }
+}
+/*
+ *  emitInstance
+ *     Emit a single instance variable.
+ *
+ *  @param f - the stream to which the code is emitted.
+ *  @param i - the instance to emit
+ *  @param ns - namespace
+ */
+static void
+emitInstance(std::ostream& f, const Instance& i, const std::string& ns)
+{
+    switch (i.s_type) {
+    case value:
+        f << "CTreeParameter ";
+        break;
+    case array:
+        f << "CTreeParameterArray ";
+        break;
+    case structure:
+        f << "struct " << i.s_typename << " ";
+        break;
+    case structarray:
+        f << "struct " << i.s_typename << " "  << i.s_name << "[" << i.s_elementCount << "];\n";
+        return;                              // can't fall throgh.
+    default:
+        std::cerr << "**BUG - unrecognized instance type: " << i.s_type <<std::endl;
+        std::cerr << i.toString() <<std::endl;
+        exit(EXIT_FAILURE);
+    }
+    f  << i.s_name << ";\n";
+}
+/**
+ * emitInstances
+ *   Emit the instance variables.  These are declared extern in the header.
+ *
+ * @param f - the stream to which the code is emitted.
+ * @param instances - list of instances.
+ * @param ns    - namespace.
+ */
+static void
+emitInstances(std::ostream& f, const std::list<Instance>& instances, const std::string& ns)
+{
+    for (std::list<Instance>::const_iterator p = instances.begin();
+         p != instances.end(); p++) {
+       emitInstance(f, *p, ns); 
+    }
+}
+/**
+ * initStructArrayInstance
+ *    Generate a loop to initialize a structure array.
+ *    This needs to loop over all elements and initialize with stuff like
+ *    name.nnn
+ *
+ *  @param f - stream to which the code is emitted.
+ *  @param i - Instance reference.
+ *  @param ns - namespace the instance lives in.
+ */
+static void
+initStructArrayInstance(std::ostream& f, const Instance& i, const std::string& ns)
+{
+    int digits = log(i.s_elementCount) + 1;  // Number of digits in an index.
+    
+    f << "   for (int i = 0; i < " << i.s_elementCount << "; i++) \n";
+    f << "   {\n";
+    f << "        char index[" << digits+1 << "];\n";
+    f << "        sprintf(index, \"%0" << digits << "d\", i);\n";
+    f << "        std::string elname = " << i.s_name << " + index;\n";
+    f << "        " << ns << "::" << i.s_name  << "[i].Initialize(elname.c_str());\n";
+    f << "   }\n";
+}
+/**
+ * initInstance
+ *    Initializes an instance.  How this is done depends on the instance type.
+ *
+ * @param f - the stream to which code is written.
+ * @param i - the instance being initialized.
+ * @param ns - The namespace the instance lives in.
+ */
+static void
+initInstance(std::ostream& f, const Instance& i, const std::string& ns)
+{
+    switch (i.s_type) {
+    case value:
+        f << "  " << ns << "::" << i.s_name << ".Initialize("
+        << "\"" << i.s_name << "\", "
+        << i.s_options.s_bins << ", "
+        << i.s_options.s_low  << ", "
+        << i.s_options.s_high << ", "
+        << "\"" << i.s_options.s_units << "\""
+        << ");\n";
+        break;
+    case array:
+        f << "  " << ns << "::" << i.s_name << ".Initialize("
+          << "\"" << i.s_name << "\", "
+          << i.s_options.s_bins << ", "
+          << i.s_options.s_low  << ", "
+          << i.s_options.s_high << ", "
+          << "\"" << i.s_options.s_units << "\", "
+          << i.s_elementCount << ", 0);\n";
+        break;
+    case structure:
+        f << "  " << ns << "::" << i.s_name << ".Initialize("
+          << "\"" << i.s_name << "\");\n";
+        break;
+    case structarray:
+        initStructArrayInstance(f, i, ns);
+        break;
+    default:
+        std::cerr << "*BUG unrecognized instance type: " << i.s_type << std::endl;
+        std::cerr << i.toString() << std::endl;
+        exit(EXIT_FAILURE);
+    }
+}
+/**
+ * emitApi
+ *    Emits the API functions.  For SpecTcl, the only one that matters
+ *    is the Initialize function which needs to initialize all the instance
+ *    variables.
+ *
+ * @param f - stream to which code is emitted.
+ * @param instances - Instance list.
+ * @param ns        - namespace our functions live in.
+ */
+static void
+emitApi(std::ostream& f, const std::list<Instance>& instances, const std::string& ns)
+{
+    // First emit the ones that are empty:
+    
+    f << "void " << ns << "::SetupEvent() {}\n";
+    f << "void " << ns << "::CommitEvent() {} \n";
+    
+    // Initialize has to init each instance
+    
+    f << "void " << ns << "::Initialize()\n{\n";
+    for (std::list<Instance>::const_iterator p = instances.begin(); p != instances.end(); p++) {
+        initInstance(f, *p, ns);
+    }
+    f << "}\n";
+}
 /**
  * generateCPP
  *    Generates the .cpp file.  This generates a file containing instances
@@ -265,7 +526,45 @@ generateCPP(
     const std::string& base, const std::list<TypeDefinition>& types,
     const std::list<Instance>& instances
 )
-{}
+{
+    // Generate the CPP filename and the namespace in which all the
+    // functions will exist:
+    
+    std::string filename = base + ".cpp";
+    std::string header  = base + ".h";
+    char cstrFilename[base.size() + 1];
+    strcpy(cstrFilename, base.c_str());
+    std::string nsname   = basename(cstrFilename);
+    
+    // open the output file:
+    
+    std::ofstream f(filename.c_str());
+    
+    // Generate the file:
+    
+    commentHeader(f, filename, "Actual data declarations and exectuable code");
+    f << "#define IMPLEMENTATION_MODULE\n";
+    f << "#include \"" << header <<"\"\n";
+    f << "#include <stdio.h>\n";
+    
+    // For each defined data type, we need to writes its Initialize
+    // method.
+    
+    f << "\n/** Instance variables - unpack your stuff int these */ \n\n";
+    
+    f << "namespace " << nsname << " {\n";
+    emitInstances(f, instances, nsname);
+    f << "}\n";
+    
+    f << "\n/** Implementation of initialization methods */\n\n";
+    emitInitializeMethods(f, nsname, types);
+    
+    f << "\n/** Implementation of the API functions */ \n\n";
+    emitApi(f, instances, nsname);
+    
+    f.close();
+        
+}
 
 /**
  *  main
