@@ -1,0 +1,1 @@
+This directory has the implementation of the root code generator.
