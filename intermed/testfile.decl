@@ -4,8 +4,8 @@ struct a  {
     value b low=-1.5 high=1.5 units=cm
 }
 struct b {
-    array a[100]
-    array b[200]
+    array a[10]
+    array b[20]
 }
 
 struct c {
@@ -21,8 +21,9 @@ struct c {
 value b low=-100.5 high=100 bins=200 units=cm
 value a
 
-array c[100]
+array c[20]
 array d[5] units=furlongs
 
+structinstance a stuff
 structinstance c mystuff
-structarrayinstance b morestuff[100]
+structarrayinstance b morestuff[20]

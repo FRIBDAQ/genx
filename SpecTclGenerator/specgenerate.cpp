@@ -433,13 +433,13 @@ emitInstances(std::ostream& f, const std::list<Instance>& instances, const std::
 static void
 initStructArrayInstance(std::ostream& f, const Instance& i, const std::string& ns)
 {
-    int digits = log(i.s_elementCount) + 1;  // Number of digits in an index.
+    int digits = log10(i.s_elementCount) + 1;  // Number of digits in an index.
     
     f << "   for (int i = 0; i < " << i.s_elementCount << "; i++) \n";
     f << "   {\n";
     f << "        char index[" << digits+1 << "];\n";
     f << "        sprintf(index, \"%0" << digits << "d\", i);\n";
-    f << "        std::string elname = " << i.s_name << " + index;\n";
+    f << "        std::string elname = std::string(\"" << i.s_name << ".\") + index;\n";
     f << "        " << ns << "::" << i.s_name  << "[i].Initialize(elname.c_str());\n";
     f << "   }\n";
 }
