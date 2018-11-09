@@ -67,3 +67,10 @@ void yyerror(const char *s)
     std::cerr << "*** error: " << lineNum << " : " << s << std::endl;
     exit(EXIT_FAILURE);
 }
+
+// Non fatal error
+
+void yywarning(const char* s)
+{
+    std::cerr << "** warning: " << lineNum << " : " << s << std::endl;
+}

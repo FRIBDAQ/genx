@@ -10,9 +10,12 @@ extern int yylex();
 extern int yyparse();
 extern FILE* yyin;
 void yyerror(const char* s);
+void yywarning(const char* s);
+
 static int checkIndex(double);
 static void verifyTypeField(const char* type, const char* field);
 static void verifyTypeInstance(const char* type, const char *instance);
+static void warnIfTypeName(const std::string& inst);
 %}
 %union {
     double number;
@@ -187,6 +190,10 @@ simple_value: VALUE NAME
         currentInstance.s_type = value;
         currentInstance.s_name = $2;
         free($2);
+        
+        // Warning if the instance name matches a type name:
+        
+        warnIfTypeName(currentInstance.s_name);
         addInstance(currentInstance);
       
     }
@@ -211,6 +218,9 @@ simple_array: ARRAY NAME LBRACK NUMBER RBRACK
         currentInstance.s_options.Reinit();
         currentInstance.s_type = array;
         currentInstance.s_name = $2;
+        free($2);
+        warnIfTypeName(currentInstance.s_name);
+        
         int count= checkIndex($4);
         
         currentInstance.s_elementCount = count;
@@ -233,7 +243,10 @@ struct_instance: STRUCTINSTANCE NAME NAME
         currentInstance.s_options.Reinit();   // Don't actully have options but...
         currentInstance.s_type = structure;
         currentInstance.s_name = $3;
+        free ($3);
         currentInstance.s_typename = $2;
+        free($2);
+        warnIfTypeName(currentInstance.s_name);
         currentInstance.s_elementCount =1;
         addInstance(currentInstance);
     }
@@ -244,7 +257,10 @@ structarray_instance: STRUCTARRAYINSTANCE NAME NAME LBRACK NUMBER RBRACK
         currentInstance.s_options.Reinit();   // Don't actully have options but...
         currentInstance.s_type = structarray;
         currentInstance.s_name = $3;
+        free($3);
         currentInstance.s_typename = $2;
+        free($2);
+        warnIfTypeName(currentInstance.s_name);
         currentInstance.s_elementCount =$5;
         addInstance(currentInstance);
     }
@@ -289,5 +305,20 @@ static void verifyTypeInstance(const char* ty, const char *i)
         errormsg << "Unknown type: " << ty
             << " for structinstance or structarrayinstance " << i << std::endl;
         yyerror(errormsg.str().c_str());
+    }
+}
+
+// Root/C++11 will toss errors if the instance name is that same as a
+// type.
+
+static void warnIfTypeName(const std::string& instanceName)
+{
+    if (structExists(instanceName.c_str())) {
+        std::string message = "Instance name ";
+        message += instanceName;
+        message += " is the same as a struct name.\n";
+        message += "This will cause compilation errors for some targets (e.g. Root/g++)\n";
+        message += "unless you compile with -fpermissive (not recommended)\n";
+        yywarning(message.c_str());
     }
 }
