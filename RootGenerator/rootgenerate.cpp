@@ -294,7 +294,7 @@ generateLinkDef(
     f << "#ifdef __CINT__\n\n";
     f << "#pragma link off all globals;\n";
     f << "#pragma link off all classes;\n";
-    f << "#pragman link off all functions;\n\n";
+    f << "#pragma link off all functions;\n\n";
     
     for (std::list<TypeDefinition>::const_iterator p = types.begin();
          p != types.end(); p++) {
