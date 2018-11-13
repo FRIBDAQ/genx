@@ -47,7 +47,6 @@ int main(int argc, char** argv)
     std::string bindir = TOSTRING(PREFIX);
     bindir += "/bin";
     
-    std::cout << "Bin dir is " << bindir << std::endl;
     
     // construct the front end command:
     
@@ -68,7 +67,7 @@ int main(int argc, char** argv)
     std::string command = parserCmd;
     command += " ";
     command += parsedArgs.inputs[0];      // First file is the .decl fil.
-    command + " | " ;                     // Piped to:
+    command += " | " ;                     // Piped to:
     command += backend + " ";             // The selected backend.
     command += parsedArgs.inputs[1];      // second command is the basename.
     

@@ -3,6 +3,11 @@ CXXFLAGS=-I../intermed
 
 all: rootgenerate
 
+install: rootgenerate
+	install -d $(PREFIX)/bin
+	install rootgenerate $(PREFIX)/bin
+
+
 rootgenerate: rootgenerate.o
 	$(CXX) -o rootgenerate rootgenerate.o $(CXXLDFLAGS)
 

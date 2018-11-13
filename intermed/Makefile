@@ -1,5 +1,9 @@
 all: parser desertest
 
+install: parser
+	install -d $(PREFIX)/bin
+	install parser $(PREFIX)/bin
+
 parser: driver.o lex.yy.o datadecl.tab.o instance.o definedtypes.o
 	$(CXX) -o parser  driver.o instance.o definedtypes.o lex.yy.o datadecl.tab.o
 

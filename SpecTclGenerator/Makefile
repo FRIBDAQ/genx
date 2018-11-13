@@ -4,6 +4,11 @@ CXXFLAGS=-I../intermed
 
 all: specgenerate
 
+install: specgenerate
+	install -d $(PREFIX)/bin
+	install specgenerate $(PREFIX)/bin
+
+
 specgenerate: specgenerate.o
 	$(CXX) -o specgenerate specgenerate.o $(CXXLDFLAGS)
 

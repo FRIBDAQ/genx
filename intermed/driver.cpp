@@ -38,7 +38,7 @@ int main(int argc, char** argv)
 {
     if (argc != 2) {
         std::cerr << "Usage:\n" << std::endl;;
-        std::cerr << "   driver declaration-file\n" << std::endl;;
+        std::cerr << "   parser declaration-file\n" << std::endl;;
         exit(EXIT_FAILURE);
     }
     

@@ -1,3 +1,5 @@
+all: genx
+
 genx: genx.o genxparams.o
 	$(CXX) -o genx genx.o genxparams.o
 
@@ -15,3 +17,6 @@ genxparams.c: genxparams.ggo
 install: genx
 	install -d $(PREFIX)/bin
 	install genx $(PREFIX)/bin 
+
+clean:
+	rm -f genx *.o genxparams.c genxparams.h 
