@@ -1,0 +1,9 @@
+package "genx"
+version "v1.0-001"
+purpose "Generate analysis data structures"
+description "Data structure compiler for analysis frameworks"
+
+args "--unamed-opts"
+
+option "target" t "Code generation target" values="spectcl","root" enum
+
