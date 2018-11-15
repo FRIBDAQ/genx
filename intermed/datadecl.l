@@ -37,7 +37,7 @@ units           {  return UNITS; }
                     return NUMBER; 
                     }
 
-[A-Z,a-z][A-Z,a-z,0-9,$,_]* {
+[A-Z,a-z][A-Z,a-z,0-9,_]* {
                                 yylval.str = strdup(yytext);
                                 return NAME;}
 

@@ -531,10 +531,10 @@ generateCPP(
     // functions will exist:
     
     std::string filename = base + ".cpp";
-    std::string header  = base + ".h";
     char cstrFilename[base.size() + 1];
     strcpy(cstrFilename, base.c_str());
     std::string nsname   = basename(cstrFilename);
+    std::string header  = nsname + ".h";
     
     // open the output file:
     

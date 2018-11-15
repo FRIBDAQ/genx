@@ -635,7 +635,7 @@ generateCPP(
     std::ofstream f(fname.c_str());
     commentHeader(f, fname, "C++ Implementation file for root");
     f << "#define IMPLEMENTATION_MODULE\n";
-    f << "#include \"" << headerName << "\"\n\n";
+    f << "#include \"" << nsname << ".h\"\n\n";
     f << "#include <cmath>\n";
     f << "#include <TTree.h>\n";
     f << "#include <TBranch.h>\n";
