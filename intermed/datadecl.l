@@ -10,6 +10,8 @@ extern unsigned lineNum;
 
 \/\/.*         {}
 
+#.*            {}
+
 [ \t]*          {}                        
 
 \n              {lineNum++;}

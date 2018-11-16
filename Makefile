@@ -1,7 +1,7 @@
 PREFIX=/usr/opt/genx     # Default install location.
 
 
-SUBDIRS=genx intermed RootGenerator SpecTclGenerator
+SUBDIRS=genx intermed RootGenerator SpecTclGenerator docs
 
 all:
 	for f in $(SUBDIRS); do  (cd $$f;  make all PREFIX=$(PREFIX)); done

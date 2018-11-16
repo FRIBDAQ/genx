@@ -1,0 +1,2639 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE book PUBLIC "-//OASIS//DTD DocBook XML V4.3//EN"
+                      "file:///usr/share/xml/docbook/schema/dtd/4.5/docbookx.dtd
+"
+>
+<book>
+    <bookinfo>
+      <title>genx - system for framework independent analysis.</title>
+      <author><firstname>Ron</firstname><surname>Fox</surname></author>
+      <revhistory>
+          <revision>
+             <revnumber>1.0</revnumber>
+             <date>November 13, 2018</date>
+             <authorinitials>RF</authorinitials>
+             <revremark>Original Release</revremark>
+          </revision>
+      </revhistory>
+    </bookinfo>
+
+	<chapter>
+       <title>Introduction and motivation.</title>
+       <para>
+								The first stage of any data analysis is to unpack raw event files into
+								a representation that is used internally by that analysis framework.
+								In SpecTcl, for example, this unpacking typically fills in structs of
+								treeparamteers.   For Root, root trees are built and filled.
+       </para>
+							<para>
+								Without a lot of careful forethought and planning, this has often
+								resulted in experimenters writing completely different unpacking
+								software for Root and SpecTcl.  The result is not only extra work but
+								a maintenance problem as event structures evolve.
+							</para>
+							<para>
+								genx is a system that allows you to specify the structure of your
+								unpacked data in a way that it can be converted into the data structures
+								and executable code needed to support a framework independent unpacker
+								that works regardless of the data analysis environment.  
+							</para>
+							<para>
+								genx provides
+								a data structure compiler that operates in two stages.
+								In the first stage, your data structure is compiled into an internal
+								representation.  The second, target specific stage, translates that
+								internal representation into headers and C++ executable code that supports
+								a specific analysis framework.  At this time two backends are suported,
+								SpecTcl and CERN/Root.
+								</para>
+							<para>
+								This documentation is divided into two parts:
+							</para>
+							<itemizedlist>
+								<listitem>
+												<para>
+													<link linkend='userpart' endterm='userpart.title' /> is a user guide.
+													For most people, this is the only part you need to read.  It
+													describes how to write data structure declaration files, how to
+													compile those files for specific targets and how to write an
+													a single unpacker for the files.
+												</para>
+												<para>
+													Reference information is also given in this part for the data structure
+													definition  language and the <command>genx</command> compiler
+													command.
+												</para>
+								</listitem>
+								<listitem>
+												<para>
+													<link linkend='pgmpart' endterm='pgmpart.title' /> provides sufficient
+													internals information to allow program maintainers to extend the
+													set of backend target code generators.  This part describes the
+													strategy of compilation, the internal representation. It walks through
+													how a target generator was created and finally describes what you
+													need to do to extend the set of values the <command>genx</command>
+													command's <option>--target</option> understands.
+												</para>
+								</listitem>
+							</itemizedlist>
+    </chapter>
+	<part id='userpart'>
+		<title id='userpart.title'>User manual</title>
+		<partintro>
+			<para>
+				This part provides informations for genx users.  A genx user is someone
+				who will be using genx to construct raw data unpackers. 
+			</para>
+			<para>
+				This part will describe:
+			</para>
+			<itemizedlist>
+				<listitem>
+							<para>
+												How to write data structure declaration files.
+								</para>
+				</listitem>
+				<listitem>
+					<para>
+						How to compile those declaration files into C++ headers and executable
+						modules.
+					</para>
+				</listitem>
+				<listitem>
+					<para>
+						How to write and build a framework independent unpacker that uses this
+						framework.  You may also want to see the cookbook articles on genx for
+						more information about how to use genx.
+					</para>
+				</listitem>
+		</itemizedlist>
+		</partintro>
+		<chapter>
+			<title>Writing data structure declaration files.</title>
+			<para>
+				<command>genx</command> requires that you describe your data structures.
+				This chapter describes the elements of these files.
+				The main value added by <command>genx</command> is to translate your
+				data structure files into C++ headers and executable code that supports
+				creating the structure you describe in your unpacker.
+			</para>
+			<para>
+				Maybe the simplest way to introduce the data structure language is to  look
+				at a simple, toy example.
+			</para>
+			<example>
+				<title>Data structure description file</title>
+				<programlisting>
+// Structure definitions                  <co id='decl.comment' />
+struct Ta  {                              <co id='decl.struct' />
+    value a                               <co id='decl.simplemember1' />
+    value b low=-1.5 high=1.5 units=cm    <co id='decl.simplemember2' />
+}
+struct Tb {
+    array a[10]                           <co id='decl.arraymember1' />
+    array b[20]
+}
+
+struct Tc {
+    struct Tb a                         <co id='dec.structmember' />
+    structarray Tb b[10]                <co id='decl.structarraymember'/>
+    value c units=megawidgets
+    array d[100]                        <co id='decl.arraymember2' />
+        low = 0 high = 4095 bins=4096.65 units=channels
+}
+
+// instances start here                <co id='decl.instances' />
+
+value b low=-100.5 high=100 bins=200 units=cm <co id='decl.simpleinstance' />
+value a
+
+array c[20]
+array d[5] units=furlongs             <co id='decl.arrayinstance' />
+
+structinstance Ta stuff               <co id='decl.structinstance' />
+structinstance Tc mystuff
+structarrayinstance Tb morestuff[20]  <co id='decl.structarrayinstance' />
+
+				</programlisting>
+			</example>
+			<para>
+				In the discussion that follows, match the numbers below with corresponsding
+				numbers in the example.
+			</para>
+			<calloutlist>
+				<callout arearefs='decl.comment'>
+								<para>
+									Data definition files support comments.  Comments begin with a double
+									slash (<literal>//</literal>) and end at the end of the line.  If you
+									want to have a multi-line comment just put a <literal>//</literal> before
+									each line like this:
+								</para>
+								<informalexample>
+									<programlisting>
+// This is line one of a comment.
+// This is line 2.
+									</programlisting>
+								</informalexample>
+								<para>
+									Just like you would with C++'s <literal>//</literal>.  Comments can
+									be anywhere you want.
+								</para>
+				</callout>
+				<callout arearefs='decl.struct' >
+								<para>
+									Data description files consist of structure definitions and instance
+									declarations.  Structure definitions define <firstterm>shapes</firstterm>
+									of data while instances define containers that take a specific
+									shape. 
+								</para>
+								<para>
+									All structure definitions must first.  You also cannot reference
+									structure definitions that have not yet been defined.  
+								</para>
+								<para>
+									Structure definitions begin with the keyword <literal>struct</literal>
+									followed by the name of the structure (in this case <literal>Ta</literal>).
+									The stuff inside the matched <literal>{</literal> and <literal>}</literal>
+									define the members of the structure.
+								</para>
+				</callout>
+				<callout arearefs='decl.simplemember1 decl.simplemember2'>
+								<para>
+									The simplest kind of members are
+									<firstterm>values</firstterm>.  These represent individual
+									parameters.  What they wind up looking like in real life depends
+									on the target <command>genx</command> is asked to generate code for.
+									For example, in SpecTcl a value generates a <classname>CTreeParameter</classname>
+									element of a struct.   
+								</para>
+								<para>
+							   Value members are declared using the keyword <literal>value</literal>
+										followed by the structure member name to use followed by optional
+										value meta-data.  The optional metadata is given as <literal>keyword=value</literal>
+									 and is, currently, used only by the SpecTcl target to specify
+										the suggested axis range, binning and units for the parameter. See
+										the <literal>value</literal> reference page for a complete description
+										of all the metadata items allowed.  Note that, unlike C/C++, no
+										semicolons are needed at the end of statements.  If you put one it
+										it's not an error.  It will just be ignored.
+								</para>
+								<para>
+									<type>Ta</type> is therefore a struct that contains two members
+									named <structfield>a</structfield>, which is a value that has no
+									metadata and <structfield>b</structfield>, which has a range from
+									0-4095 with a suggested binning of 4096 and units of <literal>channels</literal>.
+								</para>
+								<para>
+									Member names must begin with an alphabetical character followed by
+									as many alphabetical, numerical  or <literal>_</literal>
+									characters as you want.  This makes names compliant with C/C++
+									structure members and variables.  There is no limit to the length of
+									a name, however compilers may limit the number of characters that are
+									significant.  Choose concise and meaningful names.  Names are
+									case sensitive, as with C/C++.
+								</para>
+				</callout>
+				<callout arearefs='decl.arraymember1 decl.arraymember2'>
+								<para>
+									Structure members can also be arrays of simple values
+									(in SpecTcl these are generated as <classname>CTreeParamterArray</classname>
+									members).  An array member is declared with the reserved word
+									<literal>array</literal> followed by the name of the member which must
+									then be followed by the size of the array in <literal>[]</literal>.
+								</para>
+								<para>
+									Note that array's can also have metadata associated with them.
+									The purpose of the metadata is the same as for
+									<literal>value</literal> members.
+								</para>
+				</callout>
+				<callout arearefs='dec.structmember'>
+								<para>
+									As with C/C++ structs, a member of a struct can be another struct.
+									This is done by using the keyword <literal>struct</literal> followed by
+									the name of a structure type followed by the member name you want to use.
+									In this case, <type>Tc</type> contains a member named
+									<varname>a</varname> that is itself a structure of type
+									<type>Tb</type>.
+								</para>
+				</callout>
+				<callout arearefs='decl.structarraymember'>
+								<para>
+									Finally the <literal>structarray</literal> keyword can be used
+									to declare that a member consists of an array of structures.
+									The syntax for this is a bit like a cross between the
+									<literal>struct</literal> and <literal>array</literal> declarations.
+									<literal>structarray</literal> is followed by the name of a struct
+									you've already declared, that's followed by the name of the member
+									and the number of elements between <literal>[]</literal>.
+								</para>
+								<para>
+									This line says that <type>Tc</type> contains an element
+									named <varname>b</varname> that is a 10 element array of
+									<type>Tb</type> structs.
+								</para>
+				</callout>
+				<callout arearefs='decl.instances'>
+								<para>
+									Everything below this line is an instance.  You can think of instances
+									as variables (that's normally what they generate), of specific types.
+									Your unpacker's job will be to fill in these instances with data from
+									the raw event.
+								</para>
+								<para>
+									As with elements of a struct, instances can be simple values, arrays,
+									structures or arrays of structures.  Let's look at how each of these
+									types of instances is declared.
+								</para>
+				</callout>
+				<callout arearefs='decl.simpleinstance'>
+								<para>
+									As with structure members, simple value instances are defined using the
+									<literal>value</literal> keyword followed by the name of the instance
+									followed by optional metadata for that instance.  This line and the
+									next in the code declare two simple instance named
+									<varname>b</varname> and <varname>a</varname>.
+									<varname>b</varname> defines metadata.
+								</para>
+				</callout>
+				<callout arearefs='decl.arrayinstance'>
+								<para>
+									Similarly, the <literal>arrayt</literal> keywords is used to declare
+									an array. As with members, arrays can have metadata associated with them.
+									These two lines declare a <literal>20</literal> element array named
+									<varname>c</varname> and a <literal>5</literal> element array named
+									<varname>d</varname> with some metadata (the units of these array
+									elements are <literal>furlongs</literal>).
+								</para>
+				</callout>
+				<callout arearefs='decl.structinstance'>
+								<para>
+									<literal>structinstance</literal> is used to declare instances of structs.
+									This and the next line declare <varname>stuff</varname> as a struct
+									of type <type>Ta</type> and <varname>mystuff</varname> as a struct
+									of type <type>Tc</type>.
+								</para>
+								<para>
+									In your unpacker code, as we will see, you can treat struct instances
+									as variables that are C/C++ structs (well in fact that's what will be
+									generated, only the member types differ from generator to generator).
+									Thus your unpacker code can reference the <structfield>b</structfield>
+									member of <varname>stuff</varname> as
+									<literal>stuff.b</literal>
+								</para>
+								<para>
+									Similarly, <literal>mystuff.a.b[10]</literal> references
+									element 10 of the b member of the struct a (a <type>Tb</type>) of
+									the instance named <varname>mystuff</varname>.
+								</para>
+				</callout>
+				<callout arearefs='decl.structarrayinstance'>
+								<para>
+									<literal>structarrayinstance</literal> declares an instance that
+									is an array of structs.  In this case, <varname>morestuff</varname>
+									is an array of <literal>20</literal> elements, each of which is
+									a <type>Tb</type>.  So <literal>morestuff[2].a[5]</literal> is
+									the sort of thing you might see to reference bits of
+									<literal>morestuff</literal> in unpacking code.
+								</para>
+				</callout>
+			</calloutlist>
+		</chapter>
+		<chapter>
+			<title>Translating structure declaration files into code for a target</title>
+			<para>
+				The <command>genx</command> command (at the NSCl this is in
+				<filename>/uar/opt/genx/bin/genx</filename>) translates a
+				structure definition file into at least a C++ header and a C++ executable.
+				The header defines the structs and instances you've declared using the
+				data types expected by the analysis framework you chose as the target.
+				It also creates prototype definitions for a mimnimal set of functions
+			 for each framework.
+				The C++ executable, contains the actual storage for your instances, any
+				executable code needed to support the instances and implementations of the
+				API functions.
+			</para>
+			<para>
+				These two files will allow you to treat the instances as structs
+				and variables.
+			</para>
+			<para>
+				In this chapter we're not going to  look at the generated code but
+				rather what you need to do to generate the code.
+			</para>
+			<para>
+				The genx command must be given three bits of information:
+			</para>
+			<variablelist>
+				<varlistentry>
+								<term><option>--target</option></term>
+								<listitem>
+												<para>
+													The value of this option identifies which analysis framework
+													code will be generated for (selects what's called the
+													<firstterm>backend</firstterm> of genx).  Supported values at this
+													point in time are
+													<literal>spectcl</literal> generates code for NSCLSpecTcl and
+													<literal>root</literal> generates code for CERN Root.
+												</para>
+								</listitem>
+				</varlistentry>
+				<varlistentry>
+								<term><filename>input-file</filename></term>
+								<listitem>
+												<para>
+													The path to the file that contains your structure and instance
+													definitions.
+												</para>
+								</listitem>
+				</varlistentry>
+				<varlistentry>
+								<term><filename>output-basename</filename></term>
+								<listitem>
+												<para>
+													The <emphasis>basename</emphasis> for the files that will be
+													generated.  If, for example I choose a basename like
+													<literal>spec</literal>, the header
+													<filename>spec.h</filename> and C++ file
+													<filename>spec.cpp</filename> will be generated.
+												</para>
+								</listitem>
+				</varlistentry>
+			</variablelist>
+			<example>
+				<title>Generating SpecTcl code from data.decl</title>
+				<programlisting>
+/usr/opt/genx/bin/genx --target=spectcl data.decl spec
+				</programlisting>
+			</example>
+			<para>
+				Generates <filename>spec.h</filename> and
+				<filename>spec.cpp</filename>.
+			</para>
+			<example>
+				<title>Generating CERN/Root code from data.decl</title>
+				<programlisting>
+/usr/opt/genx/bin/genx --target=root data.decl root
+				</programlisting>
+			</example>
+			<para>
+				Generates <filename>root.h</filename>, <filename>root.cpp</filename>
+				and <filename>root-linkdef.h</filename>.  <filename>root-linkdef.h</filename>
+				is a file that allows you to build the class dictionary Root will need to
+				use the classes and structs defined and implemented in
+				<filename>root.{h,cpp}</filename> in interpreted Root code.  More on this
+				when we look at the generated code.
+			</para>
+			<para>
+				In addition to the data definitions and method implementations, three
+				functions are declared in the header and implemented in the C++ file:
+			</para>
+			<variablelist>
+				<varlistentry>
+								<term><function>Initialize</function></term>
+								<listitem>
+												<para>
+													Performs one-time initialization required by the framework.
+												</para>
+								</listitem>
+				</varlistentry>
+				<varlistentry>
+							<term><function>SetupEvent</function></term>
+							<listitem>
+											<para>
+												Performs any initialization needed before you can fill your data
+												structures with the unpacked event.
+											</para>
+							</listitem>
+				</varlistentry>
+				<varlistentry>
+								<term><function>CommitEvent</function></term>
+								<listitem>
+												<para>
+													Performs any actions needed by the analysis framework after the
+													event has been unpacked.
+												</para>
+								</listitem>
+				</varlistentry>
+			</variablelist>
+		</chapter>
+		<chapter>
+			<title>Generated Code</title>
+			<para>
+				This chapter has three sections the first two describe the code generated
+				for SpecTcl and Root.  The last section describes how to build and wrap
+				unpackers for SpecTcl and Root so that you can use the same code with both.
+			</para>
+			<section>
+				<title>Code Generated for SpecTcl</title>
+				<para>
+					In this section we'll look at the code generated for the SpecTcl target.
+					If you're not curious feel free to skip this section and the next as you
+					don't really need to know the nitty gritty details of the generated
+					code to write an unpacker.
+				</para>
+				<para>
+					First let's look at what a struct is.   For SpecTcl, a struct becomes
+					a C++ struct.  In addition to the data members, each struct has an
+					<methodname>Initialize</methodname> method which takes, as a parameter
+					a base name for the members of the struct.   The generated code for
+					a struct's <methodname>Initialize</methodname> method initializes
+					all value and array members and invokes the <methodname>Initialize</methodname>
+					method of each struct and each element of a structarray.
+				</para>
+				<para>
+					SpecTcl naming conventions are used for structarray intializer calls so that
+					each element has a numeric parameter name part.  All this may be somewhat
+					confusing so let's look at some examples.
+				</para>
+				<example>
+					<title>Initialization of simple struct members for SpecTcl - the declaration</title>
+					<programlisting>
+struct Ta  {
+    value a
+    value b low=-1.5 high=1.5 units=cm
+}
+
+					</programlisting>
+				</example>
+				<para>
+					This struct generates the following bit of code in the header:
+				</para>
+				<example>
+					<title>Initialization of simple struct members for SpecTcl - the header</title>
+					<programlisting>
+namespace spec  {
+
+
+/** Data Structure definitions **/
+
+struct Ta {
+   CTreeParameter a;
+   CTreeParameter b;
+   void Initialize(const char* basename);
+};
+...
+}
+					</programlisting>
+				</example>
+				<para>
+					The first thing to note is that the structs are generated in a namespace.
+					The namespace is derived from the basename of the output file.  You should,
+					therefore, use the same output file basename for all targets (pointing each
+					target to a different directory e.g.).
+				</para>
+				<para>
+					Next note that each member generates a tree parameter.  The
+					<methodname>Initialize</methodname> takes a <parameter>basename</parameter>
+					parameter.  This will be either the name of the instance if this
+					structure is instantated, or the path to the member if this struct is
+					a member of another struct that's instantiated.  More on that later.
+				</para>
+				<para>
+					The <methodname>Initialize</methodname> implementation generated is:
+				</para>
+				<example>
+					<title>
+						Initialization of simple struct members for SpecTcl - the implementation
+					</title>
+					<programlisting>
+
+
+void spec::Ta::Initialize(const char* basename)
+{
+   std::string name(basename);
+   a.Initialize(name + '.' + "a", 100, 0, 100, "");
+   b.Initialize(name + '.' + "b", 100, -1.5, 1.5, "cm");
+}
+					</programlisting>
+					<para>
+						The two points to see are how the basename has a period and the member
+						name grafted on to each call to the member's own
+						<methodname>Initialize</methodname> member and how the metadata
+						for <structfield>b</structfield> are used to parameterize that
+						variable's <methodname>Initialize</methodname> call.  The
+						intermediate code does not provide a distinction between provided
+						and not provided metadata, instead it defaults missing metadata as
+						SpecTcl itself does if metadata is not proviced.  That's where the
+						parameterization of <structfield>a</structfield>'s
+						<methodname>Initialize</methodname> method comes from.
+					</para>
+				</example>
+				<para>
+					Let's look at a more complex example:
+				</para>
+				<example>
+					<title>SpecTcl complex struct initialization - definition file:</title>
+					<programlisting>
+struct Tb {
+    array a[10]
+    array b[20]
+}
+
+struct Tc {
+    struct Tb a
+    structarray Tb b[10]
+    value c units=megawidgets
+    array d[100]
+        low = 0 high = 4095 bins=4096.65 units=channels;
+}
+
+					</programlisting>
+				</example>
+				<para>
+					This generates a pair of structs.  <classname>Tb</classname>
+					has a pair of <classname>CTreeParameterArray</classname> members.
+					<classname>Tc</classname> contains a struct an array of structs (both
+					<classname>Tb</classname>) a value and an array.  This generates
+					the header file segment:
+				</para>
+				<example>
+					<title>SpecTcl complex struct initialization - header file</title>
+					<programlisting>
+namespace spec  {
+
+...
+
+struct Tb {
+   CTreeParameterArray a;
+   CTreeParameterArray b;
+   void Initialize(const char* basename);
+};
+
+struct Tc {
+   struct Tb a;
+   struct Tb b[10];
+   CTreeParameter c;
+   CTreeParameterArray d;
+   void Initialize(const char* basename);
+};
+
+...
+}
+						</programlisting>
+				</example>
+				<para>
+					Note how both structs have initialization methods defined.  Let's see
+					the code generated for the two <methodname>Initialize</methodname>
+					methods:
+				</para>
+				<example>
+					<title>SpecTcl complex struct initialization - C++ file</title>
+					<programlisting>
+void spec::Tb::Initialize(const char* basename)
+{
+   std::string name(basename);
+   a.Initialize(name + '.' + "a", 0, 100, 100, "", 10, 0);
+   b.Initialize(name + '.' + "b", 0, 100, 100, "", 20, 0);
+}
+
+void spec::Tc::Initialize(const char* basename)
+{
+   std::string name(basename);
+   a.Initialize((name + '.' + "a").c_str());
+   for (int i = 0; i &lt; 10; i++) {
+      char index[3];
+      sprintf(index, "%02d", i);
+      std::string elname = name + "." +  "b." + index;
+      b[i].Initialize(elname.c_str());
+   }
+   c.Initialize(name + '.' + "c", 100, 0, 100, "megawidgets");
+   d.Initialize(name + '.' + "d", 0, 4095, 4096, "channels", 100, 0);
+}
+
+					</programlisting>
+				</example>
+				<para>
+					Note how the <classname>Tb</classname> just initializes the tree parameter
+					arrays.  <classname>Tc</classname>, on the other hand initializes each of its
+					elements and a loop is generated to create new parameter base names like
+					arrays for the structarray element and to initialize each struct in that
+					structarray individually.
+				</para>
+				<para>
+					Finally, SpecTcl does not require any code for
+					<methodname>SetupEvent</methodname> as SpecTcl itself invalidates the
+					underlying parameters very efficiently (an O(1) algorithm).  Similarly
+					<methodname>CommitEvent</methodname> requires no code from SpecTcl.
+					<methodname>Initializee</methodname>, however must get the initialization
+					ball rolling by initializing all instances.  Those instances in turn,
+					if they are structs or structarrays will initialize their members.
+				</para>
+				<para>
+					Here are the instance declarations:
+				</para>
+				<example>
+					<title>Initialization code for SpecTcl - definition file</title>
+					<programlisting>
+value b low=-100.5 high=100 bins=200 units=cm
+value a
+
+array c[20]
+array d[5] units=furlongs
+
+structinstance Ta stuff
+structinstance Tc mystuff
+structarrayinstance Tb morestuff[20]
+						
+					</programlisting>
+				</example>
+				<para>
+					This generates the following in the header:
+				</para>
+				<example>
+					<title>Initialization code for SpecTcl - header</title>
+					<programlisting>
+namespaces spec {
+...
+#ifndef IMPLEMENTATION_MODULE
+extern CTreeParameter b;
+extern CTreeParameter a;
+extern CTreeParameterArray c;
+extern CTreeParameterArray d;
+extern struct Ta stuff;
+extern struct Tc mystuff;
+extern struct Tb morestuff[20];
+
+#endif
+/** API functions callable by the user **/
+
+void Initialize();
+void SetupEvent();
+void CommitEvent();
+}
+					</programlisting>
+			</example>
+				<para>
+					Note the <literal>#ifdef</literal> that brackets the instance declarations.
+					This is because the implementation file will actually define those objects
+					and C++ considers it an error to both declare an object as externa dn
+					define it locally.  Thus the C++ module will have a
+					<literal>#define IMPLEMENTATION_MODULE</literal> prior to including
+					the generated header.
+				</para>
+				<para>
+					The header also declares the three API functions.
+				</para>
+				<example>
+					<title>Initialization code for SpecTcl - C++ file</title>
+					<programlisting>
+namespace spec {
+CTreeParameter b;
+CTreeParameter a;
+CTreeParameterArray c;
+CTreeParameterArray d;
+struct Ta stuff;
+struct Tc mystuff;
+struct Tb morestuff[20];
+}
+
+...
+void spec::SetupEvent() {}
+void spec::CommitEvent() {}
+void spec::Initialize()
+{
+  spec::b.Initialize("b", 200, -100.5, 100, "cm");
+  spec::a.Initialize("a", 100, 0, 100, "");
+  spec::c.Initialize("c", 100, 0, 100, "", 20, 0);
+  spec::d.Initialize("d", 100, 0, 100, "furlongs", 5, 0);
+  spec::stuff.Initialize("stuff");
+  spec::mystuff.Initialize("mystuff");
+   for (int i = 0; i &lt; 20; i++)
+   {
+        char index[3];
+        sprintf(index, "%02d", i);
+        std::string elname = std::string("morestuff.") + index;
+        spec::morestuff[i].Initialize(elname.c_str());
+   }
+}
+
+					</programlisting>
+				</example>
+				<para>
+					This should be about what you'd expect to see for initialization by now.
+				</para>
+			</section>
+			<section>
+				<title>Code generated for Root</title>
+				<para>
+					This section describes how code is generated for CERN/Root. At the time
+					this document is being written, this code has been tested with
+					Root version 6.10.02.  I would guess, however the generated code is
+					compatible with just about any version of Root as what it does is very
+					basic.
+				</para>
+				<para>
+					A detailed knowledge of the generated code isn't necessary, however.
+					If you want to skip this section and go on to the sections that describe
+					how to write and use unpackers and come back to this later, feel free.
+					You can always come back to this section if something about the generated
+					header and C++ file is confusing.
+				</para>
+				<para>
+					Unlike SpecTcl, Root Trees contain leaves that are arbitrary types.
+					The generated code will treat <literal>value</literal>s as
+					<type>Double_t</type> and <literal>array</literal>s as arrays of
+					<type>Double_t</type>.   <literal>struct</literal>s will generate
+					C++ classes with public elements.
+					Let's look at a simple example:
+				</para>
+				<example>
+					<title>Simple struct for Root - Declarations:</title>
+					<programlisting>
+struct Ta  {
+    value a
+    value b low=-1.5 high=1.5 units=cm
+}
+struct Tb {
+    array a[10]
+    array b[20]
+}
+					</programlisting>
+				</example>
+				<para>
+					This generates the following Header code:
+				</para>
+				<example>
+					<title>Simple struct for Root - Header</title>
+					<programlisting>
+namespace spec {
+
+class Ta : public TObject {
+public:
+   Ta();
+    ~Ta();
+   Ta(const Ta&amp;);
+   Ta&amp; operator=(const Ta&amp; rhs);
+   void Reset();
+
+   Double_t a;
+   Double_t b;
+
+  ClassDef(Ta, 1)
+};
+
+class Tb : public TObject {
+public:
+   Tb();
+    ~Tb();
+   Tb(const Tb&amp;);
+   Tb&amp; operator=(const Tb&amp; rhs);
+   void Reset();
+
+   Double_t a[10];
+   Double_t b[20];
+
+  ClassDef(Tb, 1)
+};
+
+					</programlisting>
+				</example>
+				<para>
+					Note the two structs have generated two classes with the same name.
+					Each of those classes is derived from <classname>TObject</classname>,
+					the Root ultimate base class and defines the methods root requires
+					for serializing objects into  trees.  The
+					<literal>ClassDef</literal> directives will allow us to generate code
+					that can also be used in interpreted Root scripts.
+				</para>
+				<para>
+					An additional <methodname>Reset</methodname> method is defined.
+				</para>
+				<para>
+					Finally note that the generate data members are just as described.
+					Single <type>Double_t</type> members for <literal>value</literal> members
+					and <type>Double_t</type> arrays for arrays.
+				</para>
+				<para>
+					The C++ file will be written to contain implementations of the required
+					methods for each of these classes:
+				</para>
+				<example>
+					<title>Simple struct for Root - C++ code</title>
+					<programlisting>
+#define IMPLEMENTATION_MODULE
+#include "spec.h"
+
+#include &lt;cmath&gt;
+#include &lt;TTree.h&gt;
+#include &lt;TBranch.h&gt;
+
+// Class method implementations:
+
+// Implementation of methods for class: spec::Ta
+
+ClassImp(spec::Ta);
+
+spec::Ta::Ta() {
+   Reset();
+}
+
+spec::Ta::~Ta() {}
+
+spec::Ta::Ta(const spec::Ta&amp; rhs) {
+   *this = rhs;
+}
+
+spec::Ta&amp; spec::Ta::operator=(const spec::Ta&amp; rhs) {
+   a = rhs.a;
+   b = rhs.b;
+   return *this;
+}
+
+void spec::Ta::Reset() {
+   a= NAN;
+   b= NAN;
+}
+
+// Implementation of methods for class: spec::Tb
+
+ClassImp(spec::Tb);
+
+spec::Tb::Tb() {
+   Reset();
+}
+
+spec::Tb::~Tb() {}
+
+spec::Tb::Tb(const spec::Tb&amp; rhs) {
+   *this = rhs;
+}
+
+spec::Tb&amp; spec::Tb::operator=(const spec::Tb&amp; rhs) {
+   for(int i = 0; i &lt; 10; i++) {
+       a[i] = rhs.a[i];
+   }
+   for(int i = 0; i &lt; 20; i++) {
+       b[i] = rhs.b[i];
+   }
+   return *this;
+}
+
+void spec::Tb::Reset() {
+   for (int i = 0; i &lt; 10; i++) {
+       a[i] = NAN;
+   }
+   for (int i = 0; i &lt; 20; i++) {
+       b[i] = NAN;
+   }
+}
+
+					</programlisting>
+				</example>
+				<para>
+					The only thing I want to point out about these implementations is that
+					<methodname>Reset</methodname> initializes all data elements to
+					a <firstterm>silent NaN</firstterm>.  These values won't show up in
+					histograms and, if used on the right hand side of computations, the
+					result will also be a NaN (I think).  Note that Root has no concept of
+					parameter metadata so the metadata are ignored by the Root generator.
+				</para>
+				<para>
+					Since <literal>struct</literal> declarations can contain other
+					<literal>struct</literal>s as membrers or even arrays of
+					<literal>struct</literal>s, let's look at a more complex example
+				</para>
+				<example>
+					<title>Complex data structure in Root, declaration</title>
+					<programlisting>
+struct Tc {
+    struct Tb a
+    structarray Tb b[10]
+    value c units=megawidgets
+    array d[100]
+        low = 0 high = 4095 bins=4096.65 units=channels;
+}
+					</programlisting>
+				</example>
+			 <para>
+					You can probably guess that this will result in code that looks like:
+				</para>
+				<example>
+					<title>Complex data structure in Root, header</title>
+					<programlisting>
+class Tc : public TObject {
+public:
+   Tc();
+    ~Tc();
+   Tc(const Tc&amp;);
+   Tc&amp; operator=(const Tc&amp; rhs);
+   void Reset();
+
+   Tb a;
+   Tb b[10];
+   Double_t c;
+   Double_t d[100];
+
+  ClassDef(Tc, 1)
+};
+					</programlisting>
+				</example>
+				<para>
+					and:
+				</para>
+				<example>
+					<title>Complex data structure in Root, C++ </title>
+					<programlisting>
+// Implementation of methods for class: spec::Tc
+
+ClassImp(spec::Tc);
+
+spec::Tc::Tc() {
+   Reset();
+}
+
+spec::Tc::~Tc() {}
+
+spec::Tc::Tc(const spec::Tc&amp; rhs) {
+   *this = rhs;
+}
+
+spec::Tc&amp; spec::Tc::operator=(const spec::Tc&amp; rhs) {
+   a = rhs.a;
+   for(int i = 0; i &lt; 10; i++) {
+       b[i] = rhs.b[i];
+   }
+   c = rhs.c;
+   for(int i = 0; i &lt; 100; i++) {
+       d[i] = rhs.d[i];
+   }
+   return *this;
+}
+
+void spec::Tc::Reset() {
+   a.Reset();
+   for (int i = 0; i &lt; 10; i++) {
+       b[i].Reset();
+   }
+   c= NAN;
+   for (int i = 0; i &lt; 100; i++) {
+       d[i] = NAN;
+   }
+}
+
+					</programlisting>
+				</example>
+				<para>
+					Instances just declare instances of the underlying types.
+					For example:
+				</para>
+				<example>
+					<title>Instances in Root - declaration file</title>
+					<programlisting>
+value b low=-100.5 high=100 bins=200 units=cm
+value a
+
+array c[20]
+array d[5] units=furlongs
+
+structinstance Ta stuff
+structinstance Tc mystuff
+structarrayinstance Tb morestuff[20]
+					</programlisting>
+				</example>
+				<para>
+					Contributes the following code to the header:
+				</para>
+				<example>
+					<title>Instances in root - header</title>
+					<programlisting>
+#ifndef IMPLEMENTATION_MODULE
+
+extern    Double_t b;
+extern    Double_t a;
+extern    Double_t c[20];
+extern    Double_t d[5];
+extern    Ta stuff;
+extern    Tc mystuff;
+extern    Tb morestuff[20];
+
+#endif
+
+					</programlisting>
+				</example>
+				<para>
+					Note again the use of the conditional compilation block to allow the
+					header to be included into the implementation file:
+				</para>
+				<example>
+					<title>Instances in root - C++</title>
+					<programlisting>
+namespace root{
+Double_t b;
+Double_t a;
+Double_t c[20];
+Double_t d[5];
+Ta stuff;
+Tc mystuff;
+Tb morestuff[20];
+}
+					</programlisting>
+				</example>
+				<para>
+					As with SpecTcl, the API functions <function>Initialize</function>,
+					performs one-time initialization.  <function>SetupEvent</function>
+					performs pre-event processing initialization (in this case resetting the
+					values of the tree) and   <function>CommitEvent</function> which
+					fills generated trees from the data.
+				</para>
+				<para>
+					Let's start from the <methodname>Initialize</methodname> method. It generates
+					a <classname>TTree</classname> where each instance is a branch:
+				</para>
+				<example>
+					<title>Initialize for Root:</title>
+					<programlisting>
+namespace spec {
+TTree* pTheTree(0);
+}
+...
+void spec::Initialize() {
+   spec::pTheTree = new TTree("root", "root");
+   spec::pTheTree->Branch("b", &amp;spec::b, "b/D");
+   spec::pTheTree->Branch("a", &amp;spec::a, "a/D");
+   spec::pTheTree->Branch("c", spec::c, "c[20]/D");
+   spec::pTheTree->Branch("d", spec::d, "d[5]/D");
+   spec::pTheTree->Branch("stuff", "spec::Ta", &amp;spec::stuff);
+   spec::pTheTree->Branch("mystuff", "spec::Tc", &amp;spec::mystuff);
+   for (int i = 0; i &lt; 20; i++) {
+       char index[4];
+       sprintf(index, "_%02d", i);
+       std::string branchName = std::string("morestuff") +  index;
+       spec::pTheTree->Branch(
+							   branchName.c_str(), "spec::Tb", &amp;spec::morestuff[i]
+							);
+   }
+}
+
+					</programlisting>
+				</example>
+				<para>
+					Note that simple instances (<literal>value</literal> and
+					<literal>array</literal>) generate branches that contain
+					<type>Double_t</type> while instances of the classes generate object
+					classes.  Instances of arrays of objects generate a branch for each element of the
+					array with branch names that indicate the index.  If you prefer just to
+					be able to index those arrays directly when you read the trees back,
+					simply make a struct that contains
+					the array as an element and instantiate that instead.
+				</para>
+				<para>
+					<methodname>CommitEvent</methodname> simply fills the tree:
+				</para>
+				<example>
+					<title>CommitEvent for Root:</title>
+					<programlisting>
+
+void spec::CommitEvent() {
+   pTheTree->Fill();
+}
+
+					</programlisting>
+				</example>
+				<para>
+					<methodname>SetupEvent</methodname> just invokes <methodname>Reset</methodname>
+					for all object instances and sets non objects to NAN:
+				</para>
+				<example>
+					<title>SetupEvent for Root:</title>
+					<programlisting>
+void spec::SetupEvent() {
+   spec::b= NAN;
+   spec::a= NAN;
+   for (int i = 0; i &lt; 20; i++) {
+      spec::c[i]= NAN;
+   }
+   for (int i = 0; i &lt; 5; i++) {
+      spec::d[i]= NAN;
+   }
+   spec::stuff.Reset();
+   spec::mystuff.Reset();
+   for (int i = 0; i &lt; 20; i++) {
+      spec::morestuff[i].Reset();
+   }
+}
+
+					</programlisting>
+				</example>
+			</section>
+			<section>
+				<title>Putting this all together for SpecTcl and Root.</title>
+				<para>
+					This section puts everything together to build a common unpacker
+					for Root and SpecTcl.  First we'll describe how to setup the project
+					and a recommended directory structure for the project.  At that time;
+					we'll also build skeleton Makefiles for the project.
+				</para>
+				<para>
+					The final result will be a tailored SpecTcl and an event file to Root Tree
+					converter program.  For the latter we'll lean heavily on the cookbook
+					code for reading and analyzing ring items.
+				</para>
+				<section>
+					<title>Setting up the project</title>
+					<para>
+						Here's the recommended project directory structure:
+					</para>
+					<informalexample>
+						<programlisting>
+TopLevel
+    +-----&gt; SpecTcl
+				+-----&gt; Root
+						</programlisting>
+					</informalexample>
+					<para>
+						For our example, the TopLevel project directory
+						(substitute your own name here) will contain
+						the following files:
+					</para>
+					<variablelist>
+						<varlistentry>
+										<term><filename>event.decl</filename></term>
+										<listitem>
+														<para>
+															The data declaration file that's translated by genx.
+														</para>
+										</listitem>
+						</varlistentry>
+						<varlistentry>
+							<term><filename>unpacker.cpp</filename></term>
+							<listitem>
+								<para>
+									The unpacking code that is independent of Root and SpecTcl.
+									This is common code for both of those targets.
+								</para>
+							</listitem>
+						</varlistentry>
+						<varlistentry>
+										<term><filename>Makefile</filename></term>
+										<listitem>
+														<para>
+															The top-level Makefile for this project
+														</para>
+										</listitem>
+						</varlistentry>
+					</variablelist>
+					<para>
+						Note that we're going to use a very simple example so that you can focus
+						on the process of creating this project rather than getting lost in the
+						intricacies of the event structure.  We'll build up the Makefile incrementally
+						as we go along, however if you lose track of the form of that file,
+						fear-not, we'll supply a section that provides the complete contents of
+						all of the files we've written.
+					</para>
+				</section>
+				<section>
+					<title>Code in the TopLevel directory.</title>
+					<para>
+						We're going to define a simple unpacked structure.  The events that come
+						in will be fixed length 10 word items.  From those words we'll create
+						raw data as well as sums of element 1 and 2 and a difference between
+						elements 3 and 4.
+					</para>
+					<para>
+						This leads to an event.decl file that looks like this:
+					</para>
+					<example>
+						<title>event.decl - event declaration file for the example:</title>
+						<programlisting>
+struct Tevent {
+			array raw[10] low = 0 high = 4095 bins = 4096
+			value sum12   low = 0 high = 8191 bins = 8192
+			value diff34  low = -4095 high = 4095 bins = 8129
+}
+
+
+structinstance Tevent event
+						</programlisting>
+					</example>
+					<para>
+						To generate code for Root and SpecTcl, we'll start out with the following
+						Makefile in TopLevel:
+					</para>
+					<example>
+						<title>Makefile - generating code from event.decl</title>
+						<programlisting>
+all: toplevel spectcl root
+
+toplevel: event.decl
+							/usr/opt/genx/bin/genx --target=spectcl event.decl SpecTcl/Event
+							/usr/opt/genx/bin/genx --target=root    event.decl Root/Event
+
+spectcl:
+
+root:
+						</programlisting>
+						<para>
+							This just generates code from <filename>event.decl</filename> into
+							the appropriate directories and keeps a place holder for compiling
+							the root and spectcl bits.
+						</para>
+					</example>
+					<para>
+						The event unpacker for this code should be pretty simple.  Note
+						that the namespace that contains the instance event is event.
+					</para>
+					<example>
+						<title>unpacker.cpp - example unpacker</title>
+						<programlisting>
+#include "Event.h"
+#include &lt;stdint.h&lt;
+
+void unpack(const void* p)
+{
+  const uint16_t* pEvent = reinterpret_cast&lt;const uint16_t*&lt;(p);
+  for (int i =0; i &lt; 10; i++) {
+    Event::event.raw[i] = *pEvent++;             // Fill the raw elements.
+  }
+  Event::event.sum12 = Event::event.raw[1] + Event::event.raw[2];
+  Event::event.diff34 = Event::event.raw[3] - Event::event.raw[4];
+
+}
+
+						</programlisting>
+					</example>
+				</section>
+
+				<section>
+					<title>SpecTcl event processor and unpacker.</title>
+					<para>
+						In order to compile the event.cpp code, we're going to have to start with
+						compiling into a framework of some sort.  We'll start with SpecTcl as
+						online analysis usually comes before offline.
+					</para>
+					<para>
+						First copy a SpecTcl skeleton into the SpecTcl subdirectory:
+					</para>
+					<informalexample>
+						<programlisting>
+cp /usr/opt/spectcl/5.0-012/Skel/* SpecTcl
+						</programlisting>
+					</informalexample>
+					<para>
+						What we need to do is
+					</para>
+					<orderedlist>
+						<listitem>
+										<para>
+											Make an event processor that invokes the API elements at appropriate
+											times, and uses the code in unpacker.cpp to unpack the raw events.
+											Note that the unpacker.cpp can unpack data from SpecTcl's test event
+											generator.
+										</para>
+						</listitem>
+						<listitem>
+							<para>
+								Modify <filename>MySpecTclApp.cpp</filename> to use the event processor
+								we write in its event processingn pipeline. 
+							</para>
+						</listitem>
+						<listitem>
+										<para>
+											Modify the SpecTcl Makefile to build our tailored SpecTcl.			
+										</para>
+						</listitem>
+						<listitem>
+							<para>
+								Modify the TopLevel makefile to make SpecTcl in its spectcl: target.
+							</para>
+						</listitem>
+					</orderedlist>
+					<para>
+						We will create an event processor called
+						<classname>CUnpackerWrapper</classname>.  It will
+						invoke event::Initialize in its OnAttach method and delegate unpacking
+						data to the unpack function in unpacker.cpp.  Here's the header for
+						this <classname>CUnpackerWrapper</classname> event processor:
+					</para>
+					<example>
+						<title><filename>SpecTcl/CUnpackerWrapper.h</filename></title>
+						<programlisting>
+#ifndef CUNPACKERWRAPPER_H
+#define CUNPACKERWRAPPER_H
+#include &lt;EventProcessor.h&gt;
+
+class CUnpackerWrapper : public CEventProcessor {
+  Bool_t OnAttach(CAnalyzer&amp; rAnalyzer);
+  Bool_t operator()(const Address_t pEvent,
+                            CEvent&amp; rEvent,
+                            CAnalyzer&amp; rAnalyzer,
+                            CBufferDecoder&amp; rDecoder);
+};
+
+#endif
+							
+						</programlisting>
+					</example>
+					<para>
+						As you can see we only need to claim to implement the
+						<methodname>OnAttach</methodname> and <methodname>operator()</methodname>
+						methods.
+					</para>
+					<para>
+						The implementation of this class is very simple as well:
+					</para>
+					<example>
+						<title><filename>SpecTcl/CUnpackerWrapper.cpp</filename></title>
+						<programlisting>
+#include "CUnpackerWrapper.h"
+#include &lt;TCLAnalyzer.h&gt;
+#include "Event.h"
+
+
+extern void unpack(const void*);
+
+Bool_t CUnpackerWrapper::OnAttach(CAnalyzer&amp; rAnalyzer)
+{
+  Event::Initialize();
+  return kfTRUE;
+}
+
+Bool_t CUnpackerWrapper::operator()(const Address_t pEvent,
+                  CEvent&amp; rEvent,
+                  CAnalyzer&amp; rAnalyzer,
+                  CBufferDecoder&amp; rDecoder)
+{
+
+  // First word is the size in words... use that to set the event size
+  // (the test generator does not make ring items).
+
+  const uint16_t* p = reinterpret_cast&lt;const uint16_t*&gt;(pEvent);
+  CTclAnalyzer&amp; TclAnalyzer(dynamic_cast&lt;CTclAnalyzer&amp;&gt;(rAnalyzer));
+  TclAnalyzer.SetEventSize(*p  * sizeof(uint16_t));
+
+  Event::SetupEvent();
+  unpack(pEvent);
+  Event::CommitEvent();
+  return kfTRUE;
+}
+						</programlisting>
+					</example>
+					<para>
+						We need to adjust <filename>MySpecTclApp.cpp</filename> to set the
+						analysis pipeline up properly:
+					</para>
+					<example>
+						<title><filename>SpecTcl/MySpecTclApp.cpp</filename> - AnalysisPipeline</title>
+						<programlisting>
+...
+#include "CUnpackerWrapper.h"
+...
+void
+CMySpecTclApp::CreateAnalysisPipeline(CAnalyzer&amp; rAnalyzer)
+{
+  RegisterEventProcessor(*(new CUnpackerWrapper), "unpacker");
+
+}
+
+							</programlisting>
+					</example>
+					<para>
+						Here's the modified version of <filename>SpecTcl/Makefile</filename>
+					</para>
+					<example>
+						<title><filename>SpecTcl/Makefile</filename></title>
+						<programlisting>
+INSTDIR=/usr/opt/spectcl/5.0-012
+# Skeleton makefile for 3.1
+
+include $(INSTDIR)/etc/SpecTcl_Makefile.include
+
+#  If you have any switches that need to be added to the default c++ compilation
+# rules, add them to the definition below:
+
+USERCXXFLAGS=
+
+#  If you have any switches you need to add to the default c compilation rules,
+#  add them to the defintion below:
+
+USERCCFLAGS=$(USERCXXFLAGS)
+
+#  If you have any switches you need to add to the link add them below:
+
+USERLDFLAGS=
+
+#
+#   Append your objects to the definitions below:
+#
+
+OBJECTS=MySpecTclApp.o CUnpackerWrapper.o unpacker.o Event.o
+
+#
+#  Finally the makefile targets.
+#
+
+
+SpecTcl: $(OBJECTS)
+        $(CXXLD)  -o SpecTcl $(OBJECTS) $(USERLDFLAGS) \
+        $(LDFLAGS)
+
+unpacker.o: ../unpacker.cpp event.h
+        $(CXX) $(CXXFLAGS) -c ../unpacker.cpp
+
+
+clean:
+        rm -f $(OBJECTS) SpecTcl
+
+depend:
+        makedepend $(USERCXXFLAGS) *.cpp *.c
+
+help:
+        echo "make                 - Build customized SpecTcl"
+        echo "make clean           - Remove objects from previous builds"
+        echo "make depend          - Add dependencies to the Makefile. "
+
+						</programlisting>
+					</example>
+					<para>
+						Note the explicit rule to build unpacker.o into this directory using
+						the source file in TopLevel directory.  Note as well the need to
+						Build Event.o from the C++ and header generated by genx.
+					</para>
+					<para>
+						Finally in the top level Makefile we've modified the
+						<literal>spectcl</literal> target:
+					</para>
+					<informalexample>
+						<programlisting>
+spectcl:
+        (cd SpecTcl; make)
+						</programlisting>
+					</informalexample>
+					<para>
+						If you've followed along, you should be able to issue the
+						<command>make</command> command in the TopLevel directory and wind up with
+						a SpecTcl in the SpecTcl directory.  If you make some spectra and
+						use the <command>start</command> command without specifying a data source,
+						the test data source will supply data to SpecTcl and you can see
+						the spectra get populated.
+					</para>
+				</section>
+				<section>
+					<title>Ring item reader, and unpacker to make trees.</title>
+					<para>
+						We're going to start from the cookbook recipe in
+						$DAQROOT/share/recipes/process for this.  The source files for this
+						are in $DAQROOT/share/recipes/process for 11.3-005 and later.
+						Let's start by setting up NSCLDAQ and ROOT and
+						copying that recipe into the Root folder. At TopLevel:
+						</para>
+					<informalexample>
+						<programlisting>
+. /usr/opt/daq/11.3-005/daqsetup.bash
+module load root/gnu/6.10.02
+cp $DAQROOT/share/recipes/process/* Root
+						</programlisting>
+					</informalexample>
+					<para>
+						Note that Event.h, Event.cpp and Event-linkdef.h are already there from
+						our make of SpecTcl.
+					</para>
+					<para>
+						From here we need to:
+					</para>
+					<orderedlist>
+						<listitem>
+										<para>
+												Modify process.cpp to create the output file and Initialize the
+												tree.  Note that the output file has to be created before the
+												tree so that the tree will be produced in the output file.
+										</para>
+						</listitem>
+						<listitem>
+										<para>
+											Modify process.cpp to write to the output file and close it when
+											there are no more ring items in the data source.  This ensures the
+											any buffered data are written into the tree.
+										</para>
+						</listitem>
+						<listitem>
+										<para>
+											Make processor.cpp's physics event processor call our
+											unpacker function.  We'll also remove code from the example's
+											implementation of its other methods
+											so our program won't be so noisy when it runs.
+										</para>
+						</listitem>
+						<listitem>
+											<para>
+												Modify the Makefile to create the program, and stuff we need
+												to use the root classes in Event.cpp in root interpreted code.
+												Note that the resulting shared object can also be linked into
+												compiled root programs.
+											</para>
+							</listitem>
+					</orderedlist>
+					<para>
+						Modifications to <filename>process.cpp</filename> are relatively minor.
+						They are limited to a few lines here and there:
+					</para>
+					<example>
+						<title><filename>Root/process.cpp</filename> modifications</title>
+						<programlisting>
+...
+// Headers for other modules in this program:
+
+#include "processor.h"
+
+#include "Event.h"
+#include &lt;TFile.h&gt;
+
+...
+static void
+usage(std::ostream&amp; o, const char* msg)
+{
+    o &lt;&lt; msg &lt;&lt; std::endl;
+    o &lt;&lt; "Usage:\n";
+    o &lt;&lt; "  readrings uri rootfile\n";
+    o &lt;&lt; "      uri - the file: or tcp: URI that describes where data comes from\n";
+    o &lt;&lt; "      rootfile - The Root file this program will write\n";
+    std::exit(EXIT_FAILURE);
+}
+...
+int
+main(int argc, char** argv)
+{
+    // Make sure we have enough command line parameters.
+
+    if (argc != 3) {
+        usage(std::cerr, "Not enough command line parameters");
+    }
+...
+   
+
+    TFile* pf = new TFile(argv[2], "RECREATE");
+    Event::Initialize();
+
+    while ((pItem = pDataSource-&gt;getItem() )) {
+        std::unique_ptr&lt;CRingItem&gt; item(pItem);     // Ensures deletion.
+        processRingItem(processor, *item);
+    }
+    // We can only fall through here for file data sources... normal exit
+
+    // Write any buffered data to file and close it:
+
+    pf-&gt;Write();
+    delete pf;
+
+    std::exit(EXIT_SUCCESS);
+}
+
+...
+						</programlisting>
+					</example>
+					<para>
+						Note that we've added another command line parameter, the name of the
+						root file that's created and written.
+					</para>
+					<para>
+						Here's the modifications to processor.cpp.  In addition to the code
+						shown, the guts of each of the other ring item type handlers was removed.
+					</para>
+					<example>
+						<title><filename>Root/processor.cpp</filename> modifications</title>
+						<programlisting>
+...
+#include &lt;CGlomParameters.h&gt;
+
+#include "Event.h"
+
+// Standard library headers:
+
+#include &lt;iostream&gt;
+...
+extern void unpack(const void* pdata);
+
+...
+
+void
+CRingItemProcessor::processEvent(CPhysicsEventItem&amp; item)
+{
+  Event::SetupEvent();
+  unpack(item.getBodyPointer());
+  Event::CommitEvent();
+}
+...
+						</programlisting>
+					</example>
+					<para>
+						Note that in addition to creating the executable program, Root wants
+						dictionary code to be made and, if we're going to play back the
+						resulting trees in interpreted Root, we'll want a shared library that
+						can be loaded into the interpreter.  This results in the following
+						Makefile:
+					</para>
+					<example>
+						<title><filename>Root/Makefile</filename></title>
+						<programlisting>
+ROOTCXXFLAGS=$(shell $(ROOTSYS)/bin/root-config --cflags)
+ROOTLDFLAGS=$(shell  $(ROOTSYS)/bin/root-config --libs)
+
+DAQCXXFLAGS=-I$(DAQROOT)/include
+DAQLDFLAGS=-L$(DAQLIB)  \
+        -ldataformat -ldaqio -lException -Wl,-rpath=$(DAQLIB)
+
+CXXFLAGS=-std=c++11 -fPIC -I. $(DAQCXXFLAGS) $(ROOTCXXFLAGS)
+CXXLDFLAGS=$(DAQLDFLAGS) $(ROOTLDFLAGS)
+
+all: process libEventRootDictionary.so
+
+process: process.o processor.o Event.o unpacker.o EventRootDictionary.o
+        $(CXX) -o process process.o processor.o Event.o unpacker.o EventRootDictionary.o $(CXXLDFLAGS)
+
+process.o: process.cpp
+        $(CXX) $(CXXFLAGS) -c process.cpp
+
+processor.o: processor.cpp
+        $(CXX) $(CXXFLAGS) -c processor.cpp
+
+Event.o: Event.cpp
+        $(CXX) $(CXXFLAGS) -c Event.cpp
+
+unpacker.o: ../unpacker.cpp Event.h
+        $(CXX) $(CXXFLAGS) -c ../unpacker.cpp
+
+## Root dictionary code:
+
+EventRootDictionary.o: EventRootDictionary.cpp
+        $(CXX) -c $(CXXFLAGS) EventRootDictionary.cpp
+
+EventRootDictionary.cpp: EventRootDictionary.h
+
+EventRootDictionary.h: Event.h Event-linkdef.h
+        LD_LIBRARY_PATH=$(ROOTSYS)/lib $(ROOTSYS)/bin/rootcint \
+        -f EventRootDictionary.cpp \
+        -rml libEventRootDictionary.so  \
+        -rmf libEventRootDictionary.rootmap \
+        $^
+
+libEventRootDictionary.so: Event.o EventRootDictionary.o
+        $(CXX) -o libEventRootDictionary.so -shared Event.o EventRootDictionary.o $(CXXLDFLAGS)
+
+clean:
+        rm -f process *.o *.so
+
+						</programlisting>
+					</example>
+					<para>
+						 The Makefile assumes that NSCLDAQ and Root have been setup.
+					</para>
+					<para>
+						The top level Makefile is then modified so that its
+						<literal>root</literal> target looks like:
+					</para>
+					<informalexample>
+						<programlisting>
+root:
+        (cd Root; make)
+						</programlisting>
+					</informalexample>
+					<para>
+						If you've followed along, you should be able to issue the
+						<command>make</command> command from <filename>TopLevel</filename>
+						and get a SpecTcl in the SpecTcl directory and the Root directory will
+						have a process program as well as
+						libEventRootDictionary.so and libEventDictionary.rootmap files.
+					</para>
+				</section>
+				<section>
+					<title>Full contents of all of the files we wrote/modified</title>
+					<para>
+						This section provides listing of all of the files we wrote. Listings are
+						not provided for the files generated by the <command>genx</command>
+						system.
+					</para>
+					<formalpara>
+						<title>Files in <filename>TopLevel</filename></title>
+						<para>
+							
+						</para>
+					</formalpara>
+					<example>
+						<title>Full listing of <filename>TopLevel/event.decl</filename></title>
+						<programlisting>
+struct Tevent {
+    array raw[10] low = 0 high = 4095 bins = 4096
+    value sum12   low = 0 high = 8191 bins = 8192
+    value diff34  low = -4095 high = 4095 bins = 8129
+}
+
+structinstance Tevent event
+						</programlisting>
+					</example>
+					<example>
+						<title>Full listing of <filename>TopLevel/Makefile</filename></title>
+						<programlisting>
+all: toplevel spectcl root
+
+toplevel: event.decl
+        /usr/opt/genx/bin/genx --target=spectcl event.decl SpecTcl/Event
+        /usr/opt/genx/bin/genx --target=root    event.decl Root/Event
+
+spectcl:
+        (cd SpecTcl; make)
+root:
+        (cd Root; make)
+
+						</programlisting>
+					</example>
+					<example>
+						<title>Full listing of <filename>TopLevel/unpacker.cpp</filename></title>
+						<programlisting>
+#include "Event.h"
+#include &lt;stdint.h&lt;
+
+void unpack(const void* p)
+{
+  const uint16_t* pEvent = reinterpret_cast&lt;const uint16_t*&gt;(p);
+  for (int i =0; i &lt; 10; i++) {
+    Event::event.raw[i] = *pEvent++;             // Fill the raw elements.
+  }
+  Event::event.sum12 = Event::event.raw[1] + Event::event.raw[2];
+  Event::event.diff34 = Event::event.raw[3] - Event::event.raw[4];
+
+}
+
+						</programlisting>
+					</example>
+					<formalpara>
+						<title>Files in SpecTcl</title>
+						<para></para>
+					</formalpara>
+					<example>
+						<title><filename>TopLevel/SpecTcl/CUnpackerWrapper.h</filename></title>
+						<programlisting>
+#ifndef CUNPACKERWRAPPER_H
+#define CUNPACKERWRAPPER_H
+#include &lt;EventProcessor.h&gt;
+
+class CUnpackerWrapper : public CEventProcessor {
+  Bool_t OnAttach(CAnalyzer&amp; rAnalyzer);
+  Bool_t operator()(const Address_t pEvent,
+                            CEvent&amp; rEvent,
+                            CAnalyzer&amp; rAnalyzer,
+                            CBufferDecoder&amp; rDecoder);
+};
+
+#endif
+
+						</programlisting>
+					</example>
+					<example>
+						<title><filename>TopLevel/Spectcl/CUnpackerWrapper.cpp</filename></title>
+						<programlisting>
+#include "CUnpackerWrapper.h"
+#include &lt;TCLAnalyzer.h&gt;
+#include "Event.h"
+
+
+extern void unpack(const void*);
+
+Bool_t CUnpackerWrapper::OnAttach(CAnalyzer&amp; rAnalyzer)
+{
+  Event::Initialize();
+  return kfTRUE;
+}
+
+Bool_t CUnpackerWrapper::operator()(const Address_t pEvent,
+                  CEvent&amp; rEvent,
+                  CAnalyzer&amp; rAnalyzer,
+                  CBufferDecoder&amp; rDecoder)
+{
+
+  // First word is the size in words... use that to set the event size
+  // (the test generator does not make ring items).
+
+  const uint16_t* p = reinterpret_cast&lt;const uint16_t*&gt;(pEvent);
+  CTclAnalyzer&amp; TclAnalyzer(dynamic_cast&lt;CTclAnalyzer&amp;&gt;(rAnalyzer));
+  TclAnalyzer.SetEventSize(*p  * sizeof(uint16_t));
+
+  Event::SetupEvent();
+  unpack(pEvent);
+  Event::CommitEvent();
+  return kfTRUE;
+}
+
+						</programlisting>
+					</example>
+					<example>
+						<title><filename>TopLevel/SpecTcl/MySpecTclApp.cpp</filename> (comments removed)</title>
+						<programlisting>
+#include &lt;config.h&gt;
+#include "MySpecTclApp.h"
+#include "EventProcessor.h"
+#include "TCLAnalyzer.h"
+#include &lt;Event.h&gt;
+#include &lt;TreeParameter.h&gt;
+#include "CUnpackerWrapper.h"
+
+#ifdef HAVE_STD_NAMESPACE
+using namespace std;
+#endif
+
+
+
+void
+CMySpecTclApp::CreateAnalysisPipeline(CAnalyzer&amp; rAnalyzer)
+{
+  RegisterEventProcessor(*(new CUnpackerWrapper), "unpacker");
+
+}
+
+CMySpecTclApp::CMySpecTclApp ()
+{
+}
+ CMySpecTclApp::~CMySpecTclApp ( )
+{
+}
+void
+CMySpecTclApp::BindTCLVariables(CTCLInterpreter&amp; rInterp)
+{
+  CTclGrammerApp::BindTCLVariables(rInterp);
+}
+
+void
+CMySpecTclApp::SourceLimitScripts(CTCLInterpreter&amp; rInterpreter)
+{ CTclGrammerApp::SourceLimitScripts(rInterpreter);
+}
+
+void
+CMySpecTclApp::SetLimits()
+{ CTclGrammerApp::SetLimits();
+}
+
+void
+CMySpecTclApp::CreateHistogrammer()
+{ CTclGrammerApp::CreateHistogrammer();
+}
+
+void
+CMySpecTclApp::CreateDisplays()
+{
+    CTclGrammerApp::CreateDisplays();
+}
+
+void
+CMySpecTclApp::SelectDisplayer()
+{
+    CTclGrammerApp::SelectDisplayer();
+}
+
+void
+CMySpecTclApp::SetUpDisplay()
+{
+    CTclGrammerApp::SetUpDisplay();
+}
+
+void
+CMySpecTclApp::SetupTestDataSource()
+{ CTclGrammerApp::SetupTestDataSource();
+}
+
+void
+CMySpecTclApp::CreateAnalyzer(CEventSink* pSink)
+{ CTclGrammerApp::CreateAnalyzer(pSink);
+}
+void
+CMySpecTclApp::SelectDecoder(CAnalyzer&amp; rAnalyzer)
+{ CTclGrammerApp::SelectDecoder(rAnalyzer);
+}
+
+void
+CMySpecTclApp::AddCommands(CTCLInterpreter&amp; rInterp)
+{ CTclGrammerApp::AddCommands(rInterp);
+}
+
+void
+CMySpecTclApp::SetupRunControl()
+{ CTclGrammerApp::SetupRunControl();
+}
+
+void
+CMySpecTclApp::SourceFunctionalScripts(CTCLInterpreter&amp; rInterp)
+{ CTclGrammerApp::SourceFunctionalScripts(rInterp);
+}
+
+int
+CMySpecTclApp::operator()()
+{
+  return CTclGrammerApp::operator()();
+}
+
+CMySpecTclApp   myApp;
+
+
+
+#ifdef SPECTCL_5_INIT
+CTclGrammerApp* CTclGrammerApp::m_pInstance = &amp;myApp;
+CTCLApplication* gpTCLApplication;
+
+#else
+CTclGrammerApp&amp; app(myApp);     // Create an instance of me.
+CTCLApplication* gpTCLApplication=&amp;app;  // Findable by the Tcl/tk framework.
+#endif
+
+						</programlisting>
+					</example>
+					<example>
+						<title><filename>TopLevel/SpecTcl/Makefile</filename></title>
+						<programlisting>
+INSTDIR=/usr/opt/spectcl/5.0-012
+
+include $(INSTDIR)/etc/SpecTcl_Makefile.include
+
+#  If you have any switches that need to be added to the default c++ compilation
+# rules, add them to the definition below:
+
+USERCXXFLAGS=
+
+#  If you have any switches you need to add to the default c compilation rules,
+#  add them to the defintion below:
+
+USERCCFLAGS=$(USERCXXFLAGS)
+
+#  If you have any switches you need to add to the link add them below:
+
+USERLDFLAGS=
+
+#
+#   Append your objects to the definitions below:
+#
+
+OBJECTS=MySpecTclApp.o CUnpackerWrapper.o unpacker.o Event.o
+
+#
+#  Finally the makefile targets.
+#
+
+
+SpecTcl: $(OBJECTS)
+        $(CXXLD)  -o SpecTcl $(OBJECTS) $(USERLDFLAGS) \
+        $(LDFLAGS)
+
+unpacker.o: ../unpacker.cpp event.h
+        $(CXX) $(CXXFLAGS) -c ../unpacker.cpp
+
+
+clean:
+        rm -f $(OBJECTS) SpecTcl
+
+depend:
+        makedepend $(USERCXXFLAGS) *.cpp *.c
+
+help:
+        echo "make                 - Build customized SpecTcl"
+        echo "make clean           - Remove objects from previous builds"
+        echo "make depend          - Add dependencies to the Makefile. "
+
+						</programlisting>
+					</example>
+					<formalpara>
+						<title>Root files</title>
+						<para>
+							
+						</para>
+					</formalpara>
+					<example>
+						<title><filename>TopLevel/Root/process.cpp</filename></title>
+						<programlisting>
+// NSCLDAQ Headers:
+
+#include &lt;CDataSource.h&gt;              // Abstract source of ring items.
+#include &lt;CDataSourceFactory.h&gt;       // Turn a URI into a concrete data source
+#include &lt;CRingItem.h&gt;                // Base class for ring items.
+#include &lt;DataFormat.h&gt;                // Ring item data formats.
+#include &lt;Exception.h&gt;                // Base class for exception handling.
+#include &lt;CRingItemFactory.h&gt;         // creates specific ring item from generic.
+#include &lt;CRingScalerItem.h&gt;          // Specific ring item classes.
+#include &lt;CRingStateChangeItem.h&gt;     //                 |
+#include &lt;CRingTextItem.h&gt;            //                 |
+#include &lt;CPhysicsEventItem.h&gt;         //                |
+#include &lt;CRingPhysicsEventCountItem.h&gt; //               |
+#include &lt;CDataFormatItem.h&gt;          //                 |
+#include &lt;CGlomParameters.h&gt;          //                 |
+#include &lt;CDataFormatItem.h&gt;          //             ----+----
+
+// Headers for other modules in this program:
+
+#include "processor.h"
+
+#include "Event.h"
+#include &lt;TFile.h&gt;
+
+// standard run time headers:
+
+#include &lt;iostream&gt;
+#include &lt;cstdlib&gt;
+#include &lt;memory&gt;
+#include &lt;vector&gt;
+#include &lt;cstdint&gt;
+
+static void
+processRingItem(CRingItemProcessor&amp; procesor, CRingItem&amp; item);   // Forward definition, see below.
+
+/**
+ * Usage:
+ *    This outputs an error message that shows how the program should be used
+ *     and exits using std::exit().
+ *
+ * @param o   - references the stream on which the error message is printed.
+ * @param msg - Error message that precedes the usage information.
+ */
+static void
+usage(std::ostream&amp; o, const char* msg)
+{
+    o &lt;&lt; msg &lt;&lt; std::endl;
+    o &lt;&lt; "Usage:\n";
+    o &lt;&lt; "  readrings uri rootfile\n";
+    o &lt;&lt; "      uri - the file: or tcp: URI that describes where data comes from\n";
+    o &lt;&lt; "      rootfile - The Root file this program will write\n";
+    std::exit(EXIT_FAILURE);
+}
+
+
+/**
+ * The main program:
+ *    - Ensures we have a URI parameter (and only a URI parameter).
+ *    - Constructs a data source.
+ *    - Reads items from the data source until the data source is exhausted.
+ *
+ *  @note Online ringbuffers are never exhausted.  The program will just block
+ *        when the ringbuffer is empty until the ring has new data.
+ *  @note Because of the note above, this function never exits for online sources.
+ */
+
+int
+main(int argc, char** argv)
+{
+    // Make sure we have enough command line parameters.
+
+    if (argc != 3) {
+        usage(std::cerr, "Not enough command line parameters");
+    }
+    // Create the data source.   Data sources allow us to specify ring item
+    // types that will be skipped.  They also allow us to specify types
+    // that we may only want to sample (e.g. for online ring items).
+
+    std::vector&lt;std::uint16_t&gt; sample;     // Insert the sampled types here.
+    std::vector&lt;std::uint16_t&gt; exclude;    // Insert the skippable types here.
+    CDataSource* pDataSource;
+    try {
+        pDataSource =
+        CDataSourceFactory::makeSource(argv[1], sample, exclude);
+    }
+    catch (CException&amp; e) {
+        usage(std::cerr, "Failed to open ring source");
+    }
+    // The loop below consumes items from the ring buffer until
+    // all are used up.  The use of an std::unique_ptr ensures that the
+    // dynamically created ring items we get from the data source are
+    // automatically deleted when we exit the block in which it's created.
+
+    CRingItem*  pItem;
+    CRingItemProcessor processor;
+
+    // Create the ROOT file and trees:
+
+    TFile* pf = new TFile(argv[2], "RECREATE");
+    Event::Initialize();
+
+    while ((pItem = pDataSource-&gt;getItem() )) {
+        std::unique_ptr&lt;CRingItem&gt; item(pItem);     // Ensures deletion.
+        processRingItem(processor, *item);
+    }
+    // We can only fall through here for file data sources... normal exit
+
+    // Write any buffered data to file and close it:
+
+    pf-&gt;Write();
+    delete pf;
+
+    std::exit(EXIT_SUCCESS);
+}
+
+
+/**
+ * processRingItem.
+ *    Modify this to put whatever ring item processing you want.
+ *    In this case, we just output a message indicating when we have a physics
+ *    event.  You  might replace this with code that decodes the body of the
+ *    ring item and, e.g., generates appropriate root trees.
+ *
+ *  @param processor - references the ring item processor that handles ringitems
+ *  @param item - references the ring item we got.
+ */
+static void
+processRingItem(CRingItemProcessor&amp; processor, CRingItem&amp; item)
+{
+    // Create a dynamic ring item that can be dynamic cast to a specific one:
+
+    CRingItem* castableItem = CRingItemFactory::createRingItem(item);
+    std::unique_ptr&lt;CRingItem&gt; autoDeletedItem(castableItem);
+
+    // Depending on the ring item type dynamic_cast the ring item to the
+    // appropriate final class and invoke the correct handler.
+    // the default case just invokes the unknown item type handler.
+
+    switch (castableItem-&gt;type()) {
+        case PERIODIC_SCALERS:
+            {
+                CRingScalerItem&amp; scaler(dynamic_cast&lt;CRingScalerItem&amp;&gt;(*castableItem));
+                processor.processScalerItem(scaler);
+                break;
+            }
+        case BEGIN_RUN:              // All of these are state changes:
+        case END_RUN:
+        case PAUSE_RUN:
+        case RESUME_RUN:
+            {
+                CRingStateChangeItem&amp; statechange(dynamic_cast&lt;CRingStateChangeItem&amp;&gt;(*castableItem));
+                processor.processStateChangeItem(statechange);
+                break;
+            }
+        case PACKET_TYPES:                   // Both are textual item types
+        case MONITORED_VARIABLES:
+            {
+                CRingTextItem&amp; text(dynamic_cast&lt;CRingTextItem&amp;&gt;(*castableItem));
+                processor.processTextItem(text);
+                break;
+            }
+        case PHYSICS_EVENT:
+            {
+                CPhysicsEventItem&amp; event(dynamic_cast&lt;CPhysicsEventItem&amp;&gt;(*castableItem));
+                processor.processEvent(event);
+                break;
+            }
+        case PHYSICS_EVENT_COUNT:
+            {
+                CRingPhysicsEventCountItem&amp;
+                    eventcount(dynamic_cast&gt;CRingPhysicsEventCountItem&amp;&gt;(*castableItem));
+                processor.processEventCount(eventcount);
+                break;
+            }
+        case RING_FORMAT:
+            {
+                CDataFormatItem&amp; format(dynamic_cast&lt;CDataFormatItem&amp;&gt;(*castableItem));
+                processor.processFormat(format);
+                break;
+            }
+        case EVB_GLOM_INFO:
+            {
+                CGlomParameters&amp; glomparams(dynamic_cast&lt;CGlomParameters&amp;&gt;(*castableItem));
+                processor.processGlomParams(glomparams);
+                break;
+            }
+        default:
+            {
+                processor.processUnknownItemType(item);
+                break;
+            }
+    }
+}
+
+						</programlisting>
+					</example>
+					<example>
+						<title><filename>TopLevel/Root/processor.cpp</filename> (comments removed)</title>
+						<programlisting>
+#include "processor.h"
+
+// NSCLDAQ includes:
+
+#include &lt;CRingItem.h&gt;
+#include &lt;CRingScalerItem.h&gt;
+#include &lt;CRingTextItem.h&gt;
+#include &lt;CRingStateChangeItem.h&gt;
+#include &lt;CPhysicsEventItem.h&gt;
+#include &lt;CRingPhysicsEventCountItem.h&gt;
+#include &lt;CDataFormatItem.h&gt;
+#include &lt;CGlomParameters.h&gt;
+
+
+#include "Event.h"
+
+// Standard library headers:
+
+#include &lt;iostream&gt;
+#include &lt;map&gt;
+#include &lt;string&gt;
+
+#include &lt;ctime&gt;
+
+extern void unpack(const void* pdata);
+
+void
+CRingItemProcessor::processScalerItem(CRingScalerItem&amp; item)
+{
+
+}
+
+void
+CRingItemProcessor::processStateChangeItem(CRingStateChangeItem&amp; item)
+{
+
+}
+void
+CRingItemProcessor::processTextItem(CRingTextItem&amp; item)
+{
+}
+
+void
+CRingItemProcessor::processEvent(CPhysicsEventItem&amp; item)
+{
+  Event::SetupEvent();
+  unpack(item.getBodyPointer());
+  Event::CommitEvent();
+}
+
+void
+CRingItemProcessor::processEventCount(CRingPhysicsEventCountItem&amp; item)
+{
+}
+
+void
+CRingItemProcessor::processFormat(CDataFormatItem&amp; item)
+{
+}
+void
+CRingItemProcessor::processGlomParams(CGlomParameters&amp; item)
+{
+}
+
+void
+CRingItemProcessor::processUnknownItemType(CRingItem&amp; item)
+{
+
+}
+
+						</programlisting>
+					</example>
+					<example>
+						<title><filename>TopLevel/Root/Makefile</filename></title>
+						<programlisting>
+##
+# Makefile for process
+#
+#   Assumes an daqsetup.bash has been sourced so that DAQROOT etc.
+#   are defined:
+
+ROOTCXXFLAGS=$(shell $(ROOTSYS)/bin/root-config --cflags)
+ROOTLDFLAGS=$(shell  $(ROOTSYS)/bin/root-config --libs)
+
+DAQCXXFLAGS=-I$(DAQROOT)/include
+DAQLDFLAGS=-L$(DAQLIB)  \
+        -ldataformat -ldaqio -lException -Wl,-rpath=$(DAQLIB)
+
+CXXFLAGS=-std=c++11 -fPIC -I. $(DAQCXXFLAGS) $(ROOTCXXFLAGS)
+CXXLDFLAGS=$(DAQLDFLAGS) $(ROOTLDFLAGS)
+
+all: process libEventRootDictionary.so
+
+process: process.o processor.o Event.o unpacker.o EventRootDictionary.o
+        $(CXX) -o process process.o processor.o Event.o unpacker.o EventRootDictionary.o $(CXXLDFLAGS)
+
+process.o: process.cpp
+        $(CXX) $(CXXFLAGS) -c process.cpp
+
+processor.o: processor.cpp
+        $(CXX) $(CXXFLAGS) -c processor.cpp
+
+Event.o: Event.cpp
+        $(CXX) $(CXXFLAGS) -c Event.cpp
+
+unpacker.o: ../unpacker.cpp Event.h
+        $(CXX) $(CXXFLAGS) -c ../unpacker.cpp
+
+## Root dictionary code:
+
+EventRootDictionary.o: EventRootDictionary.cpp
+        $(CXX) -c $(CXXFLAGS) EventRootDictionary.cpp
+
+EventRootDictionary.cpp: EventRootDictionary.h
+
+EventRootDictionary.h: Event.h Event-linkdef.h
+        LD_LIBRARY_PATH=$(ROOTSYS)/lib $(ROOTSYS)/bin/rootcint \
+        -f EventRootDictionary.cpp \
+        -rml libEventRootDictionary.so  \
+        -rmf libEventRootDictionary.rootmap \
+        $^
+
+libEventRootDictionary.so: Event.o EventRootDictionary.o
+        $(CXX) -o libEventRootDictionary.so -shared Event.o EventRootDictionary.o $(CXXLDFLAGS)
+
+clean:
+        rm -f process *.o *.so
+
+						</programlisting>
+					</example>
+				</section>
+			</section>
+		</chapter>
+		<chapter>
+			<title>Reference pages</title>
+			<refentry>
+				<refmeta>
+								<refentrytitle>Genx Declaration language</refentrytitle>
+								<manvolnum>5genx</manvolnum>
+				</refmeta>
+				<refnamediv>
+								<refname>Genx declaration language</refname>
+								<refpurpose>Event definition language.</refpurpose>
+				</refnamediv>
+				<refsynopsisdiv>
+				<cmdsynopsis>
+<command><replaceable>structure declarations</replaceable></command>
+				</cmdsynopsis>
+				<cmdsynopsis>
+<command><replaceable>instance declarations</replaceable></command>
+				</cmdsynopsis>
+				</refsynopsisdiv>
+				<refsect1>
+								<title>DESCRIPTION</title>
+								<para>
+												The Genx data declaration language provides a means for
+												defining the data structures and instances into which raw event
+												data can be unpacked in an analysis framework neutral manner.
+												What this means is that
+												the genx translator can take a genx data declaration language file
+												as input and create C++ headers and implementations that are
+												suitable for use with both SpecTcl and CERN/Root.
+								</para>
+								<para>
+									   A Genx data declaration file consists of two parts.  The first
+												part of the file contains structure definitions.  The second part
+												defines instances of both simple parameters and structures that
+												were defined in the first part.  The genx translator ignores
+												additional whitespace, and accepts the C++ comment until end of
+												line comment syntax (<literal>//</literal> means the remainder of
+												the line is ignored).
+								</para>
+								<para>
+									The remainder of this manpage provides
+								</para>
+								<orderedlist>
+									<listitem>
+										<para>
+											Reference information that describes how to define structured
+											data.
+										</para>
+									</listitem>
+									<listitem>
+										<para>
+											Reference information that describes how to define instances of both
+											simple parameters and structured parameters.
+										</para>
+									</listitem>
+									<listitem>
+										<para>
+											A full example of a Genx data declaration file.
+										</para>
+									</listitem>
+								</orderedlist>
+								<para>
+									See the remainder of the user manual for documentation describing
+									how to put Genx data declaration files to use in your
+									analysis software.
+								</para>
+				</refsect1>
+				<refsect1>
+					<title>Defining structures</title>
+					<para>
+						A structure definnition looks like this:
+					</para>
+					<informalexample>
+						<programlisting>
+<emphasis>struct</emphasis> 	structname <emphasis>{</emphasis>
+  field-def1 ...
+<emphasis>}</emphasis>
+						</programlisting>
+					</informalexample>
+					<para>
+						The way to read this is that a structure definition consist of the
+						word <literal>struct</literal>  followed by a structure name that you
+						choose followed by a <literal>{</literal>.  The <literal>{</literal>
+						is followed by one or more field definitions. A <literal>}</literal>
+						follows the last field definition.
+					</para>
+					<para>
+						A field definition looks like:
+					</para>
+					<informalexample>
+						<programlisting>
+scaler-field | array-field | struct-field | struct-array-field
+						</programlisting>
+					</informalexample>
+					<para>
+						That is there are four types of fields, scaler fields, array fields,
+						structure fields and structure array fields.
+					</para>
+					<para>
+						A scalar-field  looks like this:
+					</para>
+					<informalexample>
+						<programlisting>
+<emphasis>value</emphasis> fieldname [meta1 ...]
+						</programlisting>
+					</informalexample>
+					<para>
+						That is a scaler field consists of the keyword <literal>value</literal>
+						followed by a field name.  The field name is followed by zero or more
+						optional bits of metadata.  Metadata is not used by all translation targets.
+						Meta data consists of:
+					</para>
+					<informalexample>
+						<programlisting>
+<emphasis>low = </emphasis> floating-pt-constant  |
+<emphasis>high = </emphasis> floating-pt-constant |
+<emphasis>bins = </emphasis> counting-number      |
+<emphasis>units = </emphasis> string-value
+						</programlisting>
+					</informalexample>
+					<para>
+						The <literal>low</literal> metadata provides a floating point value that
+						represents the lower range of the parameter.  The <literal>high</literal>
+						metadata represents the high end of the parameter range. <literal>bins</literal>
+						provides the recommended binning for axes of histograms on this parameter.
+						<literal>units</literal> provides units of measure for the parameter.
+						Note that string-value does not have quotes wrapping it.
+					</para>
+					<para>
+						An array-field looks like this:
+					</para>
+					<informalexample>
+						<programlisting>
+<emphasis>array</emphasis> fieldname<emphasis>[</emphasis>counting-number<emphasis>]</emphasis> [meta...]
+						</programlisting>
+					</informalexample>
+					<para>
+						Thus the array-field looks just like the value-field except that it uses
+						the keyword <literal>array</literal> and there's an array size that's a
+						counting number inside of <literal>[]</literal> after the field name and
+						before any optional metadata.
+					</para>
+					<para>
+						struct-field members allow structures to contain other structures. The
+						other structure must have been fully defined previously.  This implies
+						that structures cannot recurse directly or indirectly.  A struct-field
+						declaration looks like this:
+					</para>
+					<informalexample>
+						<programlisting>
+<emphasis>struct</emphasis> struct-name fieldname
+						</programlisting>
+					</informalexample>
+					<para>
+						struct-name is the name of a structure that was defined previously.
+						field-name is the name of the field.
+					</para>
+					<para>
+						Similarly, structure-array-field members allow you to specify
+						a field that consists of an array of previously defined structs.
+						A struct array field looks like:
+					</para>
+					<informalexample>
+						<programlisting>
+<emphasis>structarray</emphasis> struct-name fieldname<emphasis>[</emphasis>counting-number<emphasis>]</emphasis>
+						</programlisting>
+					</informalexample>
+					<para>
+						That is exactly like a struct-field except that the
+						<literal>structarray</literal> keyword is used and the field name is followed
+						by a dimension specification which consists of the number of array
+						elements inside square brackets.
+					</para>
+					<para>
+						You can define as many structs as you want and structs can be indefinitely
+						nested.
+					</para>
+				</refsect1>
+				<refsect1>
+					<title>Instance definitions</title>
+					<para>
+						Instance definitions can be thought of as defining variables.  These
+						variables can be simple variables, array variables, structures or arrays
+						of structures.  After you have defined all of your structs your Genx
+						data definition file can have instance definitions:
+					</para>
+					<informalexample>
+						<programlisting>
+(scalar-instance | array-instance | struct-instance | struct-array-instance ) ...
+						</programlisting>
+					</informalexample>
+					<para>
+						This means that instances are one or more scaler, array, struct and
+						structure array instances.  One or more because instances are where the
+						actual unpacked parameters go so I'm assuming you'll have at least one
+						of those.
+					</para>
+					<para>
+						Scaler and array  instances look exactly like scalar members.
+						The only difference
+						is that an instance will actually generate data in the program rather than
+						just contributing to the defintion of a data structure. Syntactically
+						they are the same, just not inside a <literal>struct</literal> definition.
+					</para>
+					<para>
+						struct instances are of the form:
+					</para>
+					<informalexample>
+						<programlisting>
+<emphasis>struictinstance</emphasis> structname instancename
+							</programlisting>
+					</informalexample>
+					<para>
+						That is the keyword <literal>structinstance</literal> followed by the
+						name of a structure that was defined previously followed by the name of the
+						instance.  This will, in general, create a variable that is a struct
+						with the fields described by the struct name.   Your code can
+						treat that instance as a variable with that structure's field.
+						See the user guide for more information.
+					</para>
+					<para>
+						A struct array instance generates a variable that is an array of
+						structs.  The syntax for this is:
+					</para>
+					<informalexample>
+						<programlisting>
+<emphasis>structarrayinstance</emphasis> structname instancename<emphasis>[</emphasis>counting-number<emphasis>]</emphasis>
+						</programlisting>
+					</informalexample>
+					<para>
+						That is the keyword <literal>structarrayinstance</literal> followed by the
+						name of a previously defined struct followed by the name of the instance
+						with the number of elements inside <literal>[]</literal>.  This will
+						generate an array of with the name provided by the instance name
+						and each array elemen will be a struct with the fields described by the
+						definition of the struct named.   
+					</para>
+					<para>
+						In general, your programs can reference a struct array instance as if it
+						were an array (usually an array is generated) and reference each of the fields
+						of each element of that array as if it were a the named structure.
+					</para>
+				</refsect1>
+				<refsect1>
+					<title>Example</title>
+					<programlisting>
+
+					</programlisting>
+				</refsect1>
+
+</refentry>
+		</chapter>
+	</part>
+	<part id='pgmpart'>
+		<title id='pgmpart.title'>Programming manual</title>
+		<partintro>
+			<para>
+				Yet to be written.
+			</para>
+		</partintro>
+		<chapter>
+			<title>Yet to be written</title>
+			<para>
+				
+			</para>
+		</chapter>
+	</part>
+	
+</book>

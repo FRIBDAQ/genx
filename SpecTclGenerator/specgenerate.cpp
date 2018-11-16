@@ -322,9 +322,9 @@ emitFieldInitialization(std::ostream& f, const Instance& i)
         break;
     case array:
         f << "   " << i.s_name <<".Initialize(name + '.' + \"" << i.s_name << "\""
+        << ", " << i.s_options.s_bins
         << ", " << i.s_options.s_low
         << ", " << i.s_options.s_high
-        << ", " << i.s_options.s_bins
         << ", \"" << i.s_options.s_units << "\""
         << ", "  << i.s_elementCount
         << ", 0);\n";
