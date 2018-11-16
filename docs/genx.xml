@@ -2738,14 +2738,305 @@ genx:  somefile.decl
 		<title id='pgmpart.title'>Programming manual</title>
 		<partintro>
 			<para>
-				Yet to be written.
+				This part describes how the genx compiler works in sufficient
+				detail to allow sophisticated programmers to write a new target processor.
+				We describe the genx command and how to modify it to support a new
+				target processor. We also describe the intermediate representation produced
+				by the parser pass and how to recover that from the parser.
+			</para>
+			<para>
+				Note that once you have modified genx, you are on your own and no longer
+				have NSCL/FRIB supported software.
+			</para>
+			<para>
+				To work on genx you'll need a copy of the source tree.  A publicly visible
+				git repository is at:
+				<ulink url='https://gitlab.msu.edu/foxr/unified-unpacking.git'>
+					https://gitlab.msu.edu/foxr/unified-unpacking.git</ulink>.  You can get the
+					latest sources from there.   The system you develop on will need to have
+					<command>flex</command>, <command>bison</command>,
+					<command>docbook2html</command>, <command>gengetopt</command>
+					and of course <command>Make</command> installed.
 			</para>
 		</partintro>
 		<chapter>
-			<title>Yet to be written</title>
+			<title>Adding a <option>--target</option> to the genx compiler.</title>
 			<para>
-				
+				The <command>genx</command> command is actually a driver that puts together
+				a pipeline in which the parser pass feeds the intermediate representation
+				to the code generating pass.  This command's code is in the
+				<filename>genx</filename> subdirectory of the directory tree.
 			</para>
+			<para>
+				To add a target you must:
+			</para>
+			<orderedlist>
+				<listitem><para>
+					Make the genx program recognize your new target in the
+					<option>--target</option> option.
+				</para></listitem>
+				<listitem><para>
+					Make the genx program build the correct pipeline for your new target.
+				</para></listitem>
+			</orderedlist>
+			<para>
+				genx uses <command>gengetopt</command> to process command parameters.
+				<command>gengetopt</command> takes <filename>genxparams.ggo</filename>
+				as input and creates a header and C file to parse the parameters and options.
+				Locate the following line in that file:
+			</para>
+			<informalexample>
+				<programlisting>
+option "target" t "Code generation target" values="spectcl","root" enum
+				</programlisting>
+			</informalexample>
+			<para>
+				Add your target name to the list of target names in the
+				<literal>values</literal> clause of this line.
+			</para>
+			<para>
+				Next you'll need to modify the genx.cpp compiler driver to select the
+				correct backend for your option.  Suppose your new target is called
+				<literal>mytarget</literal> and is implemented in a program named
+				<literal>mygenerator</literal> that will be installed in the genx installation's
+				<filename>bin</filename> directory.
+			</para>
+			<para>
+				Locate the following code snippet in genx.cpp:
+			</para>
+			<informalexample>
+				<programlisting>
+    if (parsedArgs.target_arg == target_arg_spectcl) {
+        backend += "specgenerate";
+    } else {
+        backend += "rootgenerate";
+    }
+				</programlisting>
+			</informalexample>
+			<para>
+				Modify it to look like:
+			</para>
+			<informalexample>
+				<programlisting>
+    if (parsedArgs.target_arg == target_arg_spectcl) {
+        backend += "specgenerate";
+    } else if (parsedArgs.target_arg == target_arg_root) {
+        backend += "rootgenerate";
+    } else if (parsedArgs.target_arg == target_arg_mytarget) {
+				    backent += "mygenerator";
+				}
+
+				</programlisting>
+			</informalexample>
+			<para>
+				Note that since gengetop's parameter parsing code ensures the value of
+				<option>--target</option> is one of the values specified, there's no need
+				(though it can't hurt) for a final <literal>else</literal> to report an
+				illegal value.
+			</para>
+		</chapter>
+		<chapter>
+			<title>Writing a generator</title>
+			<para>
+				The actual construction of a code generator is beyond the scope of this
+				manual page.  Each analysis framework poses its own problems and choices
+				to make about how to generate headers and C++ code to support the framework.
+				This chapter will describe the form of the intermediate representation the
+				parser produces and how to deserialize it back into internal data structures
+				you can use to drive the generator.  The
+				<filename>SpecTclGenerator</filename> and <filename>RootGenerator</filename>
+				subdirectories contain generators for NSCL/SpecTcl and CERN/Root. You can use
+				them as examples.
+			</para>
+			<para>
+				The directory <filename>intermed</filename> contains the parser code.
+				There are two data sets of data structures that get passsed between
+				the parser and the generator.
+				The program <filename>deserializetest.cpp</filename> shows how to deserialize
+				data from <literal>std::cin</literal>.  
+			</para>
+			<para>
+				<filename>definedtypes.{cpp,h}</filename> provides an ordered list of the
+				structures that describe the structs that were defined by the user.
+				<filename>instance.{h,cpp}</filename> provides an ordered of the instances
+				the user defined.
+			</para>
+			<para>
+				The parser will first emit the defined struct declarations
+				(defined types).  After that it emits the instance declarations (instances).
+				You can use the deserialization functionsn defined and implemented by
+				<filename>definedtypes.{h,cpp}</filename> and <filename>instance.{h,cpp}</filename>
+				to recover the internal representation of these lists from stdin as shown
+				in <filename>deserializetest.cpp</filename>.  Those data structures then
+				can be used to drive you code generation.
+			</para>
+			<para>
+				The result of <function>deserializeTypes</function> is a
+				<type>std::list&lt;TypeDefinition&gt;</type>.  Each <type>TypeDefinition</type>
+				defines a struct the user declared in their declaration file.  The list is
+				in the order in which those structs were declared so you are ensured there
+				are no forward definitions.
+			</para>
+			<para>
+				Let's look at the fields in <type>TypeDefinition</type>.
+			</para>
+			<variablelist>
+				<varlistentry>
+								<term><type>std::string </type><structfield>s_typename</structfield></term>
+								<listitem>
+												<para>
+													This contains the name of the structure.  For example for:
+													<literal>struct Ta {...}</literal>, this will contain the string
+													<literal>Ta</literal>.
+												</para>
+								</listitem>
+				</varlistentry>
+				<varlistentry>
+								<term><type>FieldList</type> <structfield>s_fields</structfield></term>
+								<listitem>
+												<para>
+													Contains the ordered list of field definitions.  Note that
+													<type>FieldList</type> is defined as
+													<type>std::list&lt;Instance&gt;</type>.  We'll describe that
+													data type next.  Since instance definitions and field definitions
+													have essentially the same data representation needs, they share
+													a data structure.
+												</para>
+								</listitem>
+				</varlistentry>
+			</variablelist>
+			<para>
+				Instance definitions, and fields in structs are represented as
+				<type>std::list&lt;Instance&gt;</type>.  These are also in order of
+				appearance in the structure declaration or instance definition.
+				The <function>deserializeInstance</function> recovers the instance list
+				into a <type>std::list&lt;Instance&gt;</type>.
+			</para>
+			<para>
+				<type>Instance</type> structs have the following fields:
+			</para>
+			<variablelist>
+				<varlistentry>
+								<term><type>InstanceType</type> <structfield>s_type</structfield></term>
+								<listitem>
+												<para>
+													This contains the data type of the field or instance.
+													<type>InstanceType</type> is an enumerated type with legal values:
+													<literal>value</literal>, for scalar parameters,
+													<literal>array</literal>, for arrays of scalar parameters,
+													<literal>structure</literal>, for a structure and
+													<literal>structarray</literal> for arrays of structures.
+												</para>
+								</listitem>
+				</varlistentry>
+				<varlistentry>
+								<term><type>std::string</type> <structfield>s_name</structfield></term>
+								<listitem>
+												<para>
+													The name of the instance of struct field represented by this
+													data structure.
+												</para>
+								</listitem>
+				</varlistentry>
+				<varlistentry>
+								<term><type>std::string</type> <structfield>s_typename</structfield></term>
+								<listitem>
+												<para>
+													For <literal>structure </literal> or
+													<literal>structarray</literal>, this contains the name
+													of the structure that is the type of either the instance or
+													structure field represented by this struct.
+												</para>
+												<para>
+													for <literal>value</literal> or <literal>array</literal> instances
+													and fields, <structfield>s_typename</structfield> is not used and
+													you cannot rely on it having any particular value.
+												</para>
+								</listitem>
+				</varlistentry>
+				<varlistentry>
+								<term><type>unsigned</type> <structfield>s_elementCount</structfield></term>
+								<listitem>
+												<para>
+													For <literal>array</literal> and <literal>structarray</literal>
+													instances and fields, this contains the number of elements
+													 in the array.
+												</para>
+												<para>
+													For <literal>value</literal> and <literal>structure</literal>
+													fields and instances, this is unsused and you cannot rely on it
+													having any particular value.
+												</para>
+								</listitem>
+				</varlistentry>
+				<varlistentry>
+								<term><type>ValueOptions</type> <structfield>s_options</structfield></term>
+								<listitem>
+												<para>
+													This field contains metadata for the field/instance.  It only has
+													meaningful values for <literal>value</literal> and
+													<literal>array</literal> instances and fields.   It may well be
+													that your generator cannot do anything with these values (
+													the SpecTcl generator uses this to initialize tree parameters whie
+													the Root generator ignores them
+													).
+												</para>
+												
+								</listitem>
+				</varlistentry>
+			</variablelist>
+			<para>
+				The <type>ValueOptions</type> data type provides metadata for a field or
+				instance.  Not all generators use this metadata.  Metadata is always provided,
+				if not specified in the declaration file the metadata contains default
+				values that are traditional from the NSCL SpecTcl tree parameter subsystem.
+			</para>
+			<para>
+				Here are the fields for <type>ValueOptions</type>:
+			</para>
+			<variablelist>
+				<varlistentry>
+									<term><type>double</type> <structfield>s_low</structfield></term>
+									<listitem>
+													<para>
+														Anticipated low limit of the values that parameter may have.
+													</para>
+									</listitem>
+					</varlistentry>
+				<varlistentry>
+								<term><type>double</type> <structfield>s_high</structfield></term>
+								<listitem>
+												<para>
+													Anticipated high limit of the values the parameter may have.
+													Note that the parser does not require that
+													<structfield>s_low </structfield> <literal>&lt;</literal>
+													<structfield>s_high</structfield> if the high value is smaller
+													than the low value, the SpecTcl generator and SpecTcl will run
+													parameter axes for this parameter "backwards"  that is from
+													<structfield>s_low</structfield>
+													on the left to <structfield>s_high</structfield> on the right.
+												</para>
+								</listitem>
+				</varlistentry>
+				<varlistentry>
+								<term><type>unsigned</type> <structfield>s_bins</structfield></term>
+								<listitem>
+												<para>
+													The number of suggested bins on axes containing this parameter.
+													The parser requires this be a counting number (an integer strictly
+													greater than 0).
+												</para>
+								</listitem>
+				</varlistentry>
+				<varlistentry>
+								<term><type>std::string</type> <structfield>s_units</structfield></term>
+								<listitem>
+												<para>
+													Units of measure of the parameter.
+												</para>
+								</listitem>
+				</varlistentry>
+			</variablelist>
 		</chapter>
 	</part>
 	
