@@ -2614,10 +2614,123 @@ scaler-field | array-field | struct-field | struct-array-field
 				<refsect1>
 					<title>Example</title>
 					<programlisting>
+// Structure definitions 
+struct Ta  {
+    value a 
+    value b low=-1.5 high=1.5 units=cm
+}
+struct Tb {
+    array a[10]
+    array b[20]
+}
+
+struct Tc {
+    struct Tb a
+    structarray Tb b[10]
+    value c units=megawidgets
+    array d[100]
+        low = 0 high = 4095 bins=4096.65 units=channels;
+}
+
+// instances start here
+
+value b low=-100.5 high=100 bins=200 units=cm
+value a
+
+array c[20]
+array d[5] units=furlongs
+
+structinstance Ta stuff
+structinstance Tc mystuff
+structarrayinstance Tb morestuff[20]
 
 					</programlisting>
 				</refsect1>
-
+			 <refsect1>
+					<title>Advanced usage</title>
+					<para>
+						The genx compiler can use the output of the cpp preprocessor.
+						This allows you to use e.g. <literal>#include</literal> or
+						<literal>#define</literal> in your files.  A later version
+						of genx may run the preprocessor itself as an initial pass over your
+						program.  For now, you can use something like the following sequence
+						of commands in your Makefiles to generate code that uses the preprocessor:
+					</para>
+					<informalexample>
+						<programlisting>
+genx:  somefile.decl
+      cpp -E &lt;somefile.decl &gt;somefile1.decl
+						genx --target=spectcl somefile1.decl /SpecTcl/Event
+						genx --target=root    somefile1.decl /Root/Event
+						</programlisting>
+					</informalexample>
+					<para>
+						This first runs the preprocessor on somefile.decl producing
+						somefile1.decl which is then processed by genx to create SpecTcl and
+						Root code.
+					</para>
+				</refsect1>
+			</refentry>
+				<refentry>
+							<refmeta>
+											<refentrytitle>genx</refentrytitle>
+											<manvolnum>1genx</manvolnum>
+							</refmeta>
+							<refnamediv>
+											<refname>genx</refname>
+											<refpurpose>Compiler for parameter definitions</refpurpose>
+							</refnamediv>
+							<refsynopsisdiv>
+									<cmdsynopsis>
+<command>/usr/opt/genx/bin/genx <option>--target</option>=<replaceable>targetname  declaration-file output-base</replaceable></command>
+									</cmdsynopsis>
+							</refsynopsisdiv>
+							<refsect1>
+											<title>DESCRIPTION</title>
+											<para>
+															Runs the parameter definition compiler.  This command
+															takes a parameter declaration file (see 5genx) and compiles
+															it into headers and executable code modules for a specific data
+															analysis framemwork.  The <option>--target</option> option value
+															can be <literal>spectcl</literal> or <literal>root</literal>,
+															specifying that output is being created for either SpecTcl or
+															CERN/Root.
+											</para>
+											<para>
+												The declaration-file is the path to a parameter declaration
+												file written with the syntax and semantics defined in the
+												5genx manpage.  The output-base is a path and basename for
+												the resulting generated files.  Note that all declarations, instances
+												and API functions will be made in a namespace that's derived
+												from output-base as well.
+											</para>
+							</refsect1>
+							<refsect1>
+								<title>EXAMPLES</title>
+								<informalexample>
+									<cmdsynopsis>
+<command>/usr/opt/genx/bin/genx --target=spectcl myparams.decl SpecTcl/Event</command>
+									</cmdsynopsis>
+								</informalexample>
+								<para>
+									Generates SpecTcl code for the definition in <filename>myparams.decl</filename>.
+									The resulting files will be <filename>SpecTcl/Event.h</filename> ansd
+									<filename>SpecTcl/Event.cpp</filename>  All definitions will be in the
+									<literal>Event</literal> namespace.
+								</para>
+								<informalexample>
+									<cmdsynopsis>
+<command>/usr/opt/genx/bin/genx --target root myparams.decl Root/Event</command>
+									</cmdsynopsis>
+								</informalexample>
+								<para>
+									Generates CERN/Root code for the definition file
+									<filename>myparams.decl</filename>.  The resulting files will be
+									<filename>Root/Event.h</filename>, <filename>Root/Event.cxpp</filename>
+									and <filename>Root/Event-linkdef.h</filename>.  All definitions
+									will be made in the <literal>Event</literal> namespace.
+								</para>
+							</refsect1>
 </refentry>
 		</chapter>
 	</part>
