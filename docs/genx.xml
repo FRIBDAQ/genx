@@ -464,6 +464,16 @@ structarrayinstance Tb morestuff[20]  <co id='decl.structarrayinstance' />
 				for SpecTcl and Root.  The last section describes how to build and wrap
 				unpackers for SpecTcl and Root so that you can use the same code with both.
 			</para>
+            <para>
+                All generators are expected to generate their definitions and code
+                in a namespace.  By default, this namepace is derived from the
+                basename of the output file by removing leading path elements.
+                This default namespace can be overidden using the
+                <literal>namespace</literal> directive in the specificationfile.
+            </para>
+            <para>
+                In our example, we've used the default namespace.
+            </para>
 			<section>
 				<title>Code Generated for SpecTcl</title>
 				<para>
@@ -2399,18 +2409,29 @@ clean:
 												suitable for use with both SpecTcl and CERN/Root.
 								</para>
 								<para>
-									   A Genx data declaration file consists of two parts.  The first
-												part of the file contains structure definitions.  The second part
-												defines instances of both simple parameters and structures that
-												were defined in the first part.  The genx translator ignores
-												additional whitespace, and accepts the C++ comment until end of
-												line comment syntax (<literal>//</literal> means the remainder of
-												the line is ignored).
+									   A Genx data declaration file consists of two, optionally three parts.
+                                       An optional first part specifies the namespace
+                                       into which the generator will build its code.
+                                       If omitted, this is derived from the base
+                                       name of the outpout file.
+                                        The first
+                                        part of the file contains structure definitions.  The second part
+                                        defines instances of both simple parameters and structures that
+                                        were defined in the first part.  The genx translator ignores
+                                        additional whitespace, and accepts the C++ comment until end of
+                                        line comment syntax (<literal>//</literal> means the remainder of
+                                        the line is ignored).
 								</para>
 								<para>
 									The remainder of this manpage provides
 								</para>
 								<orderedlist>
+                                    <listitem>
+                                        <para>
+                                            A description of the <literal>namespace</literal>
+                                            directive.
+                                        </para>
+                                    </listitem>
 									<listitem>
 										<para>
 											Reference information that describes how to define structured
@@ -2435,10 +2456,48 @@ clean:
 									analysis software.
 								</para>
 				</refsect1>
+                <refsect1>
+                    <title>Specifying the namespace</title>
+                    <para>
+                        Generators generate their definition into a namespace.
+                        The namespace, by default is derived from the basename
+                        specified in the <command>genx</command> command after
+                        leading path element have been stripped.  For example,
+                        a basename of <filename>/users/fox/test/spectcl/mydefs</filename>
+                        will, by default generate definitions in the
+                        <literal>mydefs</literal> namespace.
+                    </para>
+                    <para>
+                        The <literal>namespace</literal> directive can override
+                        the default and specify a namespace explicitly.  The
+                        namespace directive must be the first statement in
+                        a declaration and has the form:
+                    </para>
+                    <informalexample>
+                        <programlisting>
+namespace <emphasis>namespace-name</emphasis>
+                        </programlisting>
+                    </informalexample>
+                    <para>
+                        Where <emphasis>namespace-name</emphasis> is a valid
+                        C++ namespace name and will override the default
+                        namespace name.  For example:
+                    </para>
+                    <informalexample>
+                        <programlisting>
+namespace Event
+                        </programlisting>
+                    </informalexample>
+                    <para>
+                        Causes the generators to generate code in the
+                        <literal>Event</literal> namespace regardless of the
+                        basename of the output files.
+                    </para>
+                </refsect1>
 				<refsect1>
 					<title>Defining structures</title>
 					<para>
-						A structure definnition looks like this:
+						A structure definition looks like this:
 					</para>
 					<informalexample>
 						<programlisting>
