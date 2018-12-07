@@ -2649,12 +2649,10 @@ structarrayinstance Tb morestuff[20]
 			 <refsect1>
 					<title>Advanced usage</title>
 					<para>
-						The genx compiler can use the output of the cpp preprocessor.
-						This allows you to use e.g. <literal>#include</literal> or
-						<literal>#define</literal> in your files.  A later version
-						of genx may run the preprocessor itself as an initial pass over your
-						program.  For now, you can use something like the following sequence
-						of commands in your Makefiles to generate code that uses the preprocessor:
+						The genx compiler now incorporates the C preprocessor
+                        allowing you to use directives like
+                        <literal>#include</literal> and <literal>#define</literal>
+                        to make your code modular and more readable.
 					</para>
 					<informalexample>
 						<programlisting>

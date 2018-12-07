@@ -1,5 +1,5 @@
 package "genx"
-version "v1.0-001"
+version "v1.1-000"
 purpose "Generate analysis data structures"
 description "Data structure compiler for analysis frameworks"
 
