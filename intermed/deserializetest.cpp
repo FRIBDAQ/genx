@@ -37,6 +37,7 @@ int main(int argc, char** argv)
     
     // Now dump:
     
+    std::cout << "Namespace: " << nsName << std::endl;
     std::cout << "----------------- types ---------------\n";
     for (std::list<TypeDefinition>::const_iterator p = types.begin(); p != types.end(); p++)
     {

@@ -42,17 +42,24 @@ static void warnIfTypeName(const std::string& inst);
 %token RCURLY
 %token EQUALS
 %token DOUBLE
+%token NAMESPACE
 
 %%
 
 /** Production rules */
 
-input_file: instances | struct_decls instances
+input_file: input_text | namespace_spec input_text
     ;
+input_text: instances | struct_decls instances
+    ;
+
+namespace_spec: NAMESPACE NAME
+    {
+        nsName = $2;
+    }
     
 struct_decls: struct_decl | struct_decl struct_decls
-    {
-    }
+    ;
 
 
 struct_decl: struct_name_part struct_member_part

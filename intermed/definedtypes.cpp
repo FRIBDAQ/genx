@@ -28,6 +28,7 @@
 
 std::list<TypeDefinition> typeList;
 Instance                  currentField;
+std::string nsName("");
 
 static std::set<std::string> typeNames;
 static std::set<std::string> fieldNames;
@@ -243,6 +244,10 @@ structExists(const char* name)
 std::ostream&
 serializeTypes(std::ostream& f)
 {
+        // Serialize the namespace:
+    
+    serializeString(f, nsName);
+
     unsigned n = typeList.size();
     f.write(reinterpret_cast<char*>(&n), sizeof(unsigned));
     for (std::list<TypeDefinition>::const_iterator p = typeList.begin();
@@ -265,6 +270,10 @@ serializeTypes(std::ostream& f)
 std::istream&
 deserializeTypes(std::istream& f, std::list<TypeDefinition>& tlist)
 {
+    // Deserialize the namespace:
+    
+    nsName = deserializeString(f);
+    
     // Get the number of types to deserialize:
     
     unsigned n;

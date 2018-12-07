@@ -1,6 +1,9 @@
 // Structure definitions 
 #define SIZE1 10
 #define SIZE2 20
+
+namespace testing
+
 struct Ta  {
     value a 
     value b low=-1.5 high=1.5 units=cm

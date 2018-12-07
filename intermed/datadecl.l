@@ -23,6 +23,7 @@ struct          { return STRUCT;}
 structarray     { return STRUCTARRAY; }
 structinstance  { return STRUCTINSTANCE; }
 structarrayinstance {  return STRUCTARRAYINSTANCE; }
+namespace       { return NAMESPACE; }
 low             { return LOW;}
 high            {  return HIGH;}
 bins            {  return BINS; }

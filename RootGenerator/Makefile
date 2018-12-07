@@ -1,5 +1,5 @@
 CXXLDFLAGS=../intermed/instance.o ../intermed/definedtypes.o
-CXXFLAGS=-I../intermed
+CXXFLAGS=-I../intermed 
 
 all: rootgenerate
 

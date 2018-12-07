@@ -58,4 +58,6 @@ std::istream& deserializeTypes(std::istream& f, std::list<TypeDefinition>& tlist
 extern std::list<TypeDefinition> typeList;
 extern Instance currentField;
 
+extern std::string nsName;
+
 #endif

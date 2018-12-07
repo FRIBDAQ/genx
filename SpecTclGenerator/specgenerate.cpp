@@ -234,10 +234,11 @@ static void generateHeader(
 {
     // Generate the filename for the header and the namespace name:
     
-    std::string filename = base + ".h";
-    char cstrFilename[base.size() + 1];
-    strcpy(cstrFilename, base.c_str());
-    std::string nsname   = basename(cstrFilename);
+    std::string filename = base + ".h";    
+    std::string nsname   = nsName;
+    char cstrBase[base.size() +1];
+    strcpy(cstrBase, base.c_str());
+    std::string baseFileName = basename(cstrBase);
     
     // Open the output file:
     
@@ -247,8 +248,8 @@ static void generateHeader(
     
     commentHeader(f, filename, "Define the types, instances and API");
 
-    f << "#ifndef " << nsname << "_h\n";  // Include guard.
-    f << "#define " << nsname << "_h\n";
+    f << "#ifndef " << baseFileName << "_h\n";  // Include guard.
+    f << "#define " << baseFileName << "_h\n";
     f << "#include <TreeParameter.h>\n";   // We're generating tree parameter types.
    
     // Everything we create is inside a namespace: nsname:
@@ -533,8 +534,9 @@ generateCPP(
     std::string filename = base + ".cpp";
     char cstrFilename[base.size() + 1];
     strcpy(cstrFilename, base.c_str());
-    std::string nsname   = basename(cstrFilename);
-    std::string header  = nsname + ".h";
+    std::string fname   = basename(cstrFilename);
+    std::string header  = fname + ".h";
+    std::string nsname  = nsName;
     
     // open the output file:
     
@@ -590,13 +592,19 @@ int main (int argc, char** argv)
     std::list<Instance> instances;
     deserializeInstances(std::cin, instances);
     
-    std::string basename = argv[1];
+    std::string base = argv[1];
+    
+    // Set the namespace name if needed:
+    
+    if (nsName == "") {
+        char cstrFilename[base.size() + 1];
+        strcpy(cstrFilename, base.c_str());
+        nsName   = basename(cstrFilename);        // Since basename can modify.
+    }
     
     
-    
-    
-    generateHeader(basename, types, instances);
-    generateCPP(basename, types, instances);
+    generateHeader(base, types, instances);
+    generateCPP(base, types, instances);
     
     
     exit(EXIT_SUCCESS);

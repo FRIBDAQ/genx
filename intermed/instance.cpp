@@ -295,7 +295,9 @@ deserializeString(std::istream& f)
  
     char recoveredString[n+1];
     memset(recoveredString, 0, n+1);  /// zero fill the string.
-    f.read(recoveredString, n);
+    if (n > 0) {
+        f.read(recoveredString, n);
+    }
  
     return std::string(recoveredString);   
 }

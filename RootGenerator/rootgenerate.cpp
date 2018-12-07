@@ -254,11 +254,15 @@ generateHeader(
     const std::list<TypeDefinition>& types, const std::list<Instance>& instances
 )
 {
-    std::ofstream f(fname.c_str());
-    commentHeader(f, fname, "Defines types, instances and API");
+    std::string headerName = fname+".h";
+    std::ofstream f(headerName.c_str());
+    commentHeader(f, headerName, "Defines types, instances and API");
+    char cstrName[fname.size() +1];
+    strcpy(cstrName, fname.c_str());
+    std::string baseFilename = basename(cstrName);
     
-    f << "#ifndef " << nsname << "_h" <<  std::endl;
-    f << "#define " << nsname << "_h" <<  std::endl;
+    f << "#ifndef " << baseFilename << "_h" <<  std::endl;
+    f << "#define " << baseFilename << "_h" <<  std::endl;
     f << "#include <TObject.h>\n\n";
     
     // All of the file lives in the namespace:
@@ -451,7 +455,7 @@ generateInstances(
 )
 {
     f << "//   Instance definitions\n\n";
-    f << "namespace " << nsname << "{\n";
+    f << "namespace " << nsname << " {\n";
     for (std::list<Instance>::const_iterator p = instances.begin();
          p != instances.end(); p++) {
         
@@ -632,10 +636,15 @@ generateCPP(
     const std::list<TypeDefinition>& types, const std::list<Instance>& instances
 )
 {
+    
+    char cstrHeaderName[headerName.size()+1];
+    strcpy(cstrHeaderName, headerName.c_str());
+    std::string headerBaseName = basename(cstrHeaderName);
+    
     std::ofstream f(fname.c_str());
     commentHeader(f, fname, "C++ Implementation file for root");
     f << "#define IMPLEMENTATION_MODULE\n";
-    f << "#include \"" << nsname << ".h\"\n\n";
+    f << "#include \"" << headerBaseName << "\"\n\n";
     f << "#include <cmath>\n";
     f << "#include <TTree.h>\n";
     f << "#include <TBranch.h>\n";
@@ -680,15 +689,19 @@ int main (int argc, char** argv)
     std::string cppName    = base + ".cpp";
     std::string linkdefName = base + "-linkdef.h";
     
-    char cstrFilename[base.size() +1];  // all because basename(3) an
-    strcpy(cstrFilename, base.c_str()); // modify its parameter.
     
-    std::string nsname  = basename(cstrFilename);
+    if (nsName == "") {
+        char cstrFilename[base.size() +1];  // all because basename(3) an
+        strcpy(cstrFilename, base.c_str()); // modify its parameter.   
+        nsName = basename(cstrFilename);        
+    }
+    
+    std::string nsname  = nsName;
     
     
     //  Here we go:
     
-    generateHeader(headerName, nsname, types, instances);
+    generateHeader(base, nsname, types, instances);
     generateLinkDef(linkdefName, nsname, types);
     generateCPP(cppName, headerName, nsname, types, instances);
     
