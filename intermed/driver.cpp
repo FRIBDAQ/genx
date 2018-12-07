@@ -41,10 +41,19 @@ int main(int argc, char** argv)
         std::cerr << "   parser declaration-file\n" << std::endl;;
         exit(EXIT_FAILURE);
     }
+    // foxr/unified-unpacking#1  Support using "-" as the
+    // filename to use stdin instead.
     
-    FILE* declarations = fopen(argv[1], "r");
+    
+    FILE* declarations;
+    if (std::string("-") == argv[1]) {
+        declarations =  stdin;              // Pipeline.
+    } else {
+        declarations = fopen(argv[1], "r");    
+    }
+    
     if (!declarations) {
-        std::cerr << "Failed to open data declaration file: " << argv[0] << std::endl;
+        std::cerr << "Failed to open data declaration file: " << argv[1] << std::endl;
         exit(EXIT_FAILURE);
     }
     

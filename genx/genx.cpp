@@ -64,10 +64,11 @@ int main(int argc, char** argv)
     }
     // Let's generate the command pipeline for the system(3) call:
     
-    std::string command = parserCmd;
-    command += " ";
-    command += parsedArgs.inputs[0];      // First file is the .decl fil.
-    command += " | " ;                     // Piped to:
+    std::string command = "cpp ";
+    command += parsedArgs.inputs[0];
+    command += " | ";
+    command += parserCmd;
+    command += " - | ";
     command += backend + " ";             // The selected backend.
     command += parsedArgs.inputs[1];      // second command is the basename.
     

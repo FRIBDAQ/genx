@@ -1,16 +1,18 @@
 // Structure definitions 
+#define SIZE1 10
+#define SIZE2 20
 struct Ta  {
     value a 
     value b low=-1.5 high=1.5 units=cm
 }
 struct Tb {
-    array a[10]
-    array b[20]
+    array a[SIZE1]
+    array b[SIZE2]
 }
 
 struct Tc {
     struct Tb a
-    structarray Tb b[10]
+    structarray Tb b[SIZE1]
     value c units=megawidgets
     array d[100]
         low = 0 high = 4095 bins=4096.65 units=channels;
