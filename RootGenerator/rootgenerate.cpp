@@ -192,15 +192,48 @@ writeStructureDefs(std::ostream& f, const std::list<TypeDefinition>& types)
 static void
 writeInstanceDefs(std::ostream& f, const std::list<Instance>& instances)
 {
-    // C++11 doesn't like a varaible to be declared both  extern and defined
+    // C++11 doesn't like a variable to be declared both  extern and defined
     // in the file so we conditionalize all of this on IMPLEMENTATION_MODULE
     // not being defined:
     
     f << "#ifndef IMPLEMENTATION_MODULE\n\n";
     
+    //  Note to better support marshalling this struct in and out of
+    //  MPI messages, we put all instances in a struct called
+    //  instanceStruct and then make individual references to the
+    //  struct elements.
+    
+    // Build the struct of instances:
+    
+    f << " extern struct { \n";
+    for (auto p =instances.begin(); p != instances.end(); p++) {
+        std::string fieldName = p->s_name;
+        std::string fieldType = "   Double_t";           // Default to primitive type.
+        unsigned    n         = 1;                    // Default to scalar:
+        
+        if ((p->s_type == structure) || (p->s_type == structarray)) {
+            fieldType = p->s_typename;
+        }
+        if ((p->s_type == array) || (p->s_type == structarray)) {
+            n = p->s_elementCount;
+        }
+        
+        f << "   " << fieldType << " " << fieldName;
+        if (n > 1) {
+            f << "[" << n << "]";
+        }
+        
+        f << ";\n"; 
+    }
+    f << "}  instanceStruct;\n";
+    
+    // Now generate external references to the instanceStruct elements.
+    // note that a reference to an array is
+    //    datatype (&instancName)[array_size];
+    
     for (std::list<Instance>::const_iterator p = instances.begin();
          p != instances.end(); p++) {
-        
+
         // We should be able to use the strategy used to generate fields here too:
         // TODO:  factor this out wrt writeClassMembers:
         f << "extern ";
@@ -215,7 +248,7 @@ writeInstanceDefs(std::ostream& f, const std::list<Instance>& instances)
             n = p->s_elementCount;
         }
         
-        f << "   " << fieldType << " " << fieldName;
+        f << "   " << fieldType << " (&" << fieldName << ")";
         if (n > 1) {
             f << "[" << n << "]";
         }
@@ -456,6 +489,33 @@ generateInstances(
 {
     f << "//   Instance definitions\n\n";
     f << "namespace " << nsname << " {\n";
+    
+    // What we write here is a struct of instances named 'instanceStruct'.
+    // then we write and initialize references to each element of that struct.
+    //
+    f << "struct { \n";
+ for (auto p =instances.begin(); p != instances.end(); p++) {
+        std::string fieldName = p->s_name;
+        std::string fieldType = "   Double_t";           // Default to primitive type.
+        unsigned    n         = 1;                    // Default to scalar:
+        
+        if ((p->s_type == structure) || (p->s_type == structarray)) {
+            fieldType = p->s_typename;
+        }
+        if ((p->s_type == array) || (p->s_type == structarray)) {
+            n = p->s_elementCount;
+        }
+        
+        f << "   " << fieldType << " " << fieldName;
+        if (n > 1) {
+            f << "[" << n << "]";
+        }
+        
+        f << ";\n"; 
+    }
+    f << "}  instanceStruct;\n";
+       
+    
     for (std::list<Instance>::const_iterator p = instances.begin();
          p != instances.end(); p++) {
         
@@ -471,7 +531,9 @@ generateInstances(
         if ((p->s_type == array) || (p->s_type == structarray)) {
             suffix << "[" << p->s_elementCount << "]";
         }
-        f << typeName << " "  << p->s_name << suffix.str() << ";\n";
+        f << typeName << " (&"  << p->s_name <<") " << suffix.str()
+            << "(instanceStruct." << p->s_name <<")"
+            << ";\n";
         
     }
     f << "}\n";
@@ -535,7 +597,7 @@ createBranchStructArray(
     f << "       std::string branchName = std::string(\"" << inst.s_name << "\") +  index;\n";
     f << "       " << nsname << "::pTheTree->Branch(branchName.c_str(), \""
                  << nsname << "::" << inst.s_typename << "\", &"
-                 << nsname << "::" << inst.s_name << "[i]);\n";
+                 << nsname << "::instanceStruct." << inst.s_name << "[i]);\n";
     f << "   }\n";
 }
 /**
@@ -564,19 +626,19 @@ createTree(
         switch (p->s_type) {
         case value:
             f << "   " << nsname << "::pTheTree->Branch(\"" << p->s_name << "\", &"
-                << nsname << "::" << p->s_name << ", \""
+                << nsname << "::instanceStruct." << p->s_name << ", \""
                 << p->s_name << "/D\");\n";
             break;
         case array:
             f << "   " << nsname << "::pTheTree->Branch(\"" << p->s_name << "\", "
-                << nsname << "::" << p->s_name << ", \""
+                << nsname << "::instanceStruct." << p->s_name << ", \""
                 << p->s_name << "[" << p->s_elementCount << "]/D\");\n";
             break;
         
         case structure:
             f << "   " << nsname << "::pTheTree->Branch(\"" << p->s_name << "\", \""
               << nsname << "::" << p->s_typename << "\", &"
-              << nsname << "::" << p->s_name << ");\n";
+              << nsname << "::instanceStruct." << p->s_name << ");\n";
             break;
         case structarray:          
             createBranchStructArray(f, nsname, *p);        // 'Array' of branches of structs.
