@@ -196,7 +196,6 @@ writeInstanceDefs(std::ostream& f, const std::list<Instance>& instances)
     // in the file so we conditionalize all of this on IMPLEMENTATION_MODULE
     // not being defined:
     
-    f << "#ifndef IMPLEMENTATION_MODULE\n\n";
     
     //  Note to better support marshalling this struct in and out of
     //  MPI messages, we put all instances in a struct called
@@ -205,7 +204,7 @@ writeInstanceDefs(std::ostream& f, const std::list<Instance>& instances)
     
     // Build the struct of instances:
     
-    f << " extern struct { \n";
+    f << " struct instances { \n";
     for (auto p =instances.begin(); p != instances.end(); p++) {
         std::string fieldName = p->s_name;
         std::string fieldType = "   Double_t";           // Default to primitive type.
@@ -225,8 +224,12 @@ writeInstanceDefs(std::ostream& f, const std::list<Instance>& instances)
         
         f << ";\n"; 
     }
-    f << "}  instanceStruct;\n";
+    f << "};\n\n";
     
+    f << "#ifndef IMPLEMENTATION_MODULE\n\n";
+
+    f << "\nextern struct instances instanceStruct;\n";
+
     // Now generate external references to the instanceStruct elements.
     // note that a reference to an array is
     //    datatype (&instancName)[array_size];
@@ -489,33 +492,8 @@ generateInstances(
 {
     f << "//   Instance definitions\n\n";
     f << "namespace " << nsname << " {\n";
-    
-    // What we write here is a struct of instances named 'instanceStruct'.
-    // then we write and initialize references to each element of that struct.
-    //
-    f << "struct { \n";
- for (auto p =instances.begin(); p != instances.end(); p++) {
-        std::string fieldName = p->s_name;
-        std::string fieldType = "   Double_t";           // Default to primitive type.
-        unsigned    n         = 1;                    // Default to scalar:
-        
-        if ((p->s_type == structure) || (p->s_type == structarray)) {
-            fieldType = p->s_typename;
-        }
-        if ((p->s_type == array) || (p->s_type == structarray)) {
-            n = p->s_elementCount;
-        }
-        
-        f << "   " << fieldType << " " << fieldName;
-        if (n > 1) {
-            f << "[" << n << "]";
-        }
-        
-        f << ";\n"; 
-    }
-    f << "}  instanceStruct;\n";
        
-    
+    f << "struct instances instanceStruct;\n";
     for (std::list<Instance>::const_iterator p = instances.begin();
          p != instances.end(); p++) {
         
