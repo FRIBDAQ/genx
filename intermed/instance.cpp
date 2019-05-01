@@ -70,6 +70,7 @@ findInstance(std::string name)
         }
     }
     yyerror("BUGBUG - searched for nonexistent instance name");
+    return currentInstance;
 }
 
 

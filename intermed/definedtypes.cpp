@@ -33,6 +33,7 @@ std::string nsName("");
 static std::set<std::string> typeNames;
 static std::set<std::string> fieldNames;
 
+static TypeDefinition dummy;
 extern void yyerror(const char* msg);
 /*-----------------------------------------------------------------------------
  *  private utilities
@@ -53,6 +54,7 @@ findDefinition(const char* name)
        if (p->s_typename == name) return *p; 
     }
     yyerror("BUG - findDefinition - no such type");
+    return dummy;
 }
 /**
  * fieldExists
@@ -79,6 +81,7 @@ findField(TypeDefinition& t, const std::string& name)
         if (p->s_name == name) return *p;
     }
     yyerror("BUG - findField - no such field");
+    return currentInstance;
 }
 /*------------------------------------------------------------------------------
  *   Public entries;
