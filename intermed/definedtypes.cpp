@@ -27,6 +27,7 @@
 // The global type definition list:
 
 std::list<TypeDefinition> typeList;
+static TypeDefinition     dummy;
 Instance                  currentField;
 std::string nsName("");
 
@@ -53,6 +54,7 @@ findDefinition(const char* name)
        if (p->s_typename == name) return *p; 
     }
     yyerror("BUG - findDefinition - no such type");
+    return dummy;
 }
 /**
  * fieldExists
@@ -79,6 +81,7 @@ findField(TypeDefinition& t, const std::string& name)
         if (p->s_name == name) return *p;
     }
     yyerror("BUG - findField - no such field");
+    return currentInstance;
 }
 /*------------------------------------------------------------------------------
  *   Public entries;
