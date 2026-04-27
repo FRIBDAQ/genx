@@ -29,7 +29,7 @@
 #include <math.h>
 
 
-const char* programVersionString("specgenerate version 1.0 (c) NSCL/FRIB");
+const char* programVersionString("specgenerate version 2.0 (c) NSCL/FRIB");
 
 /**
  * usage:
@@ -86,6 +86,8 @@ writeFieldDefinition(std::ostream& f, const Instance& field)
     case array:
         f << "   CTreeParameterArray " << field.s_name << ";\n";
         break;
+    case vector:
+        f << "   CTreeParameterVector " << field.s_name << ";\n";
     case structure:
         f << "   struct " << field.s_typename << " " << field.s_name << ";\n";
         break;
@@ -154,6 +156,8 @@ writeExternDecl(std::ostream& f, const Instance& i)
     case array:
         f << "CTreeParameterArray";
         break;
+    case vector:
+        f << "CTreeParameterVector";
     case structure:
         f << "struct " << i.s_typename;
         break;
@@ -173,6 +177,7 @@ writeExternDecl(std::ostream& f, const Instance& i)
  *    Writes external instance declarations for each instance.
  *    values -> CTreeParameter
  *    array -> CTreeParameterArray
+ *    vector -> CTreeParameterVector
  *    structs -> struct
  *    structarray -> array of structs.
  *
@@ -251,6 +256,7 @@ static void generateHeader(
     f << "#ifndef " << baseFileName << "_h\n";  // Include guard.
     f << "#define " << baseFileName << "_h\n";
     f << "#include <TreeParameter.h>\n";   // We're generating tree parameter types.
+    f << "#include <CTreeParameterVector.h>\n"; // We're using tree paramter vector (issue #1)
    
     // Everything we create is inside a namespace: nsname:
     
@@ -334,6 +340,12 @@ emitFieldInitialization(std::ostream& f, const Instance& i)
         f << "   " << i.s_name << ".Initialize((name + '.' + \"" << i.s_name << "\").c_str()"
         << ");\n";
         break;
+    case vector:
+        f << "    " << i.s_name << ".setLow(" << i.s_options.s_low << ");\n";
+        f << "    " << i.s_name << ".setHigh(" << i.s_options.s_high << ");\n";
+        f << "    " << i.s_name << ".setBins(" << i.s_options.s_bins << ");\n";
+        f << "    " << i.s_name << ".setUnits(\"" << i.s_options.s_units << "\");\n";
+        break;
     case structarray:
         emitStructArrayInitialization(f, i);
         break;
@@ -391,6 +403,9 @@ emitInstance(std::ostream& f, const Instance& i, const std::string& ns)
         break;
     case array:
         f << "CTreeParameterArray ";
+        break;
+    case vector:
+        f << "CTreeParamterVector ";
         break;
     case structure:
         f << "struct " << i.s_typename << " ";
@@ -473,6 +488,12 @@ initInstance(std::ostream& f, const Instance& i, const std::string& ns)
           << i.s_options.s_high << ", "
           << "\"" << i.s_options.s_units << "\", "
           << i.s_elementCount << ", 0);\n";
+        break;
+    case vector:
+        f << "   " << ns << "::" << i.s_name << ".setLow(" << i.s_options.s_low << ");\n";
+        f << "   " << ns << "::" << i.s_name << ".setHigh(" << i.s_options.s_high << ");\n";
+        f << "   " << ns << "::" << i.s_name << ".setBins(" << i.s_options.s_bins << ");\n";
+        f << "   " << ns << "::" << i.s_name << ".setUnits(\"" << i.s_options.s_units <<"\");\n";
         break;
     case structure:
         f << "  " << ns << "::" << i.s_name << ".Initialize("
