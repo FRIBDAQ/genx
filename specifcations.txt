@@ -68,6 +68,12 @@ array name num-elements  ?options...?
       -bins suggested axis bins.
       -units Units of measure to associate with the value.
 
+vecotor name ?options?
+     low = low limit
+     high = high limit
+     bins = suggested binning
+     units = units of measure.
+
 
 struct name elements
 
@@ -77,6 +83,7 @@ name of an existing stuct or an array of struct instance:  e.g:
 struct astruct {
   value avalue -high 4095 -bins 4096 -units channels
   array anarray 100 -high 4095 -bins 4096 -units channels
+  vector avector low=-1.0 high=1.0 bins=1000 units=mm
   struct somestruct astruct
   structarray anotherstruct  astructa 100
 }
@@ -85,6 +92,7 @@ This generates a struct/object that has the elements:
 
 avalue - a scaler value.
 anarray - a 100 element array
+avector - a varialbe sized vector
 astruct - an instance of the somestruct struct.
 astructa - an array of 100 instances of anotherstruct
 
@@ -92,7 +100,7 @@ astructa - an array of 100 instances of anotherstruct
 Instantiation
 ~~~~~~~~~~~~~
 
-parameters and arrays that are not encapsulated in a struct are assumed to
+parameters, vectors and arrays that are not encapsulated in a struct are assumed to
 delare a global variable with that name.
 
 Structs and arrays of structs can be instantiated using the structinstance and
@@ -102,6 +110,7 @@ For example:
 
 parameter timestamp -units ticks;             # global variable named timestamp.
 array     barhits 10;                         # 10 el gbl array named barhits.
+vector    detectorhits;                      # Variable array of detector hits
 
 struct detector {
    parameter de -high 4095 -bins 4096 -units channels
@@ -130,7 +139,8 @@ This produces the following variables that can be on the RHS or LHS of
 expressions:
 
 timestamp  - A scalar value.
-barhits    - A 10 element array of scalers:
+barhits    - A 10 element array of scalars:
+detectorhits - a variable sized vector of hits.
 exp        - a struct with elements described below.
 aux        - an array of 25 structs of type detector. See below.
 

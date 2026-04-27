@@ -26,6 +26,7 @@ static void warnIfTypeName(const std::string& inst);
 
 %token VALUE
 %token ARRAY
+%token VECTOR
 %token STRUCT
 %token STRUCTARRAY
 %token STRUCTINSTANCE
@@ -76,7 +77,7 @@ struct_member_part: LCURLY struct_members RCURLY
 struct_members: struct_member | struct_member struct_members
     {
     }
-struct_member: value_field | array_field | substruct | substruct_array
+struct_member: value_field | array_field | vector_field | substruct | substruct_array
     {
     }
 
@@ -128,6 +129,26 @@ units_option: UNITS EQUALS NAME
     {
         currentInstance.s_options.s_units = $3;
         free($3);                    // Malloced by strdup.
+    }
+
+vector_field: vector_fieldname | vector_fieldname_with_options
+    ;
+
+vector_fieldname: VECTOR NAME 
+    {
+        Instance newInstance;
+        newInstance.s_type = vector;
+        newInstance.s_name = $2;
+        free($2);
+        newInstance.s_typename = "";
+        newInstance.s_elementCount = 1;
+        addField(newInstance);
+    }
+
+vector_fieldname_with_options: vector_fieldname valueoptions
+    {
+        setLastFieldOptions(currentInstance.s_options);
+        currentInstance.s_options.Reinit();
     }
 
 array_field: simple_array_field | array_field_with_options
@@ -184,7 +205,7 @@ instances: instance | instance instances
     ;
     
     
-instance: val_instance | array_instance | struct_instance | structarray_instance
+instance: val_instance | array_instance | vector_instance | struct_instance | structarray_instance
     {
     }
     
@@ -212,6 +233,25 @@ optioned_value: simple_value valueoptions
     instanceList.back().s_options = currentInstance.s_options;
     currentInstance.s_options.Reinit();
 }
+
+vector_instance: simple_vector | optioned_vector
+    ;
+
+simple_vector: VECTOR NAME
+    {
+        currentInstance.s_options.Reinit();
+        currentInstance.s_type = vector;
+        currentInstance.s_name = $2;
+        free($2);
+        warnIfTypeName(currentInstance.s_name);
+        addInstance(currentInstance);
+    }
+
+optioned_vector: simple_vector valueoptions {
+    instanceList.back().s_options = currentInstance.s_options;
+    currentInstance.s_options.Reinit();
+}
+
 
 array_instance: simple_array | optioned_array
     {
