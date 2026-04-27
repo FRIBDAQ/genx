@@ -149,6 +149,9 @@ Instance::toString() const
     case value:
         sresult << "value";
         break;
+    case vector:
+        sresult << "vector";
+        break;
     case array:
         sresult << "array";
         break;

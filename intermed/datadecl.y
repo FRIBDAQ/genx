@@ -217,6 +217,7 @@ simple_value: VALUE NAME
         currentInstance.s_options.Reinit();
         currentInstance.s_type = value;
         currentInstance.s_name = $2;
+        currentInstance.s_elementCount =1;
         free($2);
         
         // Warning if the instance name matches a type name:
@@ -242,6 +243,7 @@ simple_vector: VECTOR NAME
         currentInstance.s_options.Reinit();
         currentInstance.s_type = vector;
         currentInstance.s_name = $2;
+        currentInstance.s_elementCount =1;
         free($2);
         warnIfTypeName(currentInstance.s_name);
         addInstance(currentInstance);
