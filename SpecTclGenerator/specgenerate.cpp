@@ -599,7 +599,7 @@ emitConstructors(std::ostream& f, const std::list<TypeDefinition>& types, const 
             // construction of a struct array.
             // arrays need the size in the tree parameter arra constructor.
            
-            std::string fname="(std::string(basename) + \"";
+            std::string fname="(std::string(basename) + \".";
             fname += field.s_name;
             fname += "\")";
             if (field.s_type == structarray) {
