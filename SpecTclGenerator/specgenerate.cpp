@@ -92,6 +92,7 @@ writeFieldDefinition(std::ostream& f, const Instance& field)
         break;
     case vector:
         f << "   CTreeParameterVector " << field.s_name << ";\n";
+        break;
     case structure:
         f << "   struct " << field.s_typename << " " << field.s_name << ";\n";
         break;
