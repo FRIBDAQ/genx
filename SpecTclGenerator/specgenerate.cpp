@@ -609,6 +609,7 @@ emitConstructors(std::ostream& f, const std::list<TypeDefinition>& types, const 
             } else {
                 f << field.s_name << "(" << fname << ".c_str())";
             }
+            // If this is not the last field, emit ,\n otherwise just an \n
             if (field.s_name != t.s_fields.back().s_name) {
                 f << ",\n";
             } else {
