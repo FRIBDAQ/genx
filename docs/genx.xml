@@ -12,8 +12,25 @@
              <revnumber>1.0</revnumber>
              <date>November 13, 2018</date>
              <authorinitials>RF</authorinitials>
-             <revremark>Original Release</revremark>
+             
+			 <revdescription>
+				<itemizedlist>
+					<listitem><para>
+						Original Release
+					</para></listitem>
+					<listitem><para>
+						Document the vector type as of genx 2.0
+					</para></listitem>
+					<listitem><para>
+						Misc. fixes to typos.
+					</para></listitem>
+				</itemizedlist>
+			</revdescription>
           </revision>
+		  <revision>
+		  	<revnumber>2.0</revnumber>
+			<date>April 29, 2026</date>
+		</revision>
       </revhistory>
     </bookinfo>
 
@@ -124,22 +141,27 @@
 			<example>
 				<title>Data structure description file</title>
 				<programlisting>
+
+#define SIZE1 10                         <co id='decl.preproc' />
+#define SIZE2 20
 // Structure definitions                  <co id='decl.comment' />
 struct Ta  {                              <co id='decl.struct' />
     value a                               <co id='decl.simplemember1' />
     value b low=-1.5 high=1.5 units=cm    <co id='decl.simplemember2' />
 }
 struct Tb {
-    array a[10]                           <co id='decl.arraymember1' />
-    array b[20]
+    array a[SIZE1]                           <co id='decl.arraymember1' />
+    array b[SIZE2]
+	vector c                                 <co id='decl.vectormember' />
 }
 
 struct Tc {
     struct Tb a                         <co id='dec.structmember' />
-    structarray Tb b[10]                <co id='decl.structarraymember'/>
+    structarray Tb b[SIZE1]                <co id='decl.structarraymember'/>
     value c units=megawidgets
-    array d[100]                        <co id='decl.arraymember2' />
+    array d[100]                        
         low = 0 high = 4095 bins=4096.65 units=channels
+	vector e low = 0 high =360 bins = 30 units=degrees <co id='decl.vmemberwithmetadata' />
 }
 
 // instances start here                <co id='decl.instances' />
@@ -147,9 +169,9 @@ struct Tc {
 value b low=-100.5 high=100 bins=200 units=cm <co id='decl.simpleinstance' />
 value a
 
-array c[20]
+array c[SIZE2]
 array d[5] units=furlongs             <co id='decl.arrayinstance' />
-
+vector v low=-1 high=1 bins=100 units=mm <co id='decl.vectorinstance' />
 structinstance Ta stuff               <co id='decl.structinstance' />
 structinstance Tc mystuff
 structarrayinstance Tb morestuff[20]  <co id='decl.structarrayinstance' />
@@ -161,6 +183,14 @@ structarrayinstance Tb morestuff[20]  <co id='decl.structarrayinstance' />
 				numbers in the example.
 			</para>
 			<calloutlist>
+				<callout arearefs='decl.preproc'>
+					<para>
+						Note that the genx translator runs the C preprocessor over the
+						input file prior to processing it.  Therefore all C preprocessor
+						directives are legal, as long as the resulting code is valid
+						genx input.
+					</para>
+				</callout>
 				<callout arearefs='decl.comment'>
 								<para>
 									Data definition files support comments.  Comments begin with a double
@@ -233,7 +263,7 @@ structarrayinstance Tb morestuff[20]  <co id='decl.structarrayinstance' />
 									case sensitive, as with C/C++.
 								</para>
 				</callout>
-				<callout arearefs='decl.arraymember1 decl.arraymember2'>
+				<callout arearefs='decl.arraymember1'>
 								<para>
 									Structure members can also be arrays of simple values
 									(in SpecTcl these are generated as <classname>CTreeParamterArray</classname>
@@ -246,6 +276,16 @@ structarrayinstance Tb morestuff[20]  <co id='decl.structarrayinstance' />
 									The purpose of the metadata is the same as for
 									<literal>value</literal> members.
 								</para>
+				</callout>
+				<callout arearefs='decl.vectormember'>
+					<para>
+						Struture members can also be vectors.  In SpecTcl, vectors generate
+						<classname>CTreeParameterVector</classname> object.  This implies they can only
+						be used with SpecTcl version 7.0-005 and higher, as that's when those data types
+						were introduced.  The Root code generator generates std::vector&lt;Double_t&gt;
+						objects for vectors.  Vectors are only supported for scalar types, but any number
+						of vector members can be put in a structure definition.
+					</para>
 				</callout>
 				<callout arearefs='dec.structmember'>
 								<para>
@@ -272,6 +312,16 @@ structarrayinstance Tb morestuff[20]  <co id='decl.structarrayinstance' />
 									named <varname>b</varname> that is a 10 element array of
 									<type>Tb</type> structs.
 								</para>
+				</callout>
+				<callout arearefs='decl.vmemberwithmetadata'>
+					<para>
+						Vector definitions can also have properties as, in SpecTcl, they generate
+						<classname>CTreeParameterVector</classname> objects that are, essentially
+						vectors of <classname>CTreeParameter</classname>.  These properties are
+						propagated into the SpecTcl definitions, and, unless modified, will be
+						the properties that are used to create the <classname>CTreeParameter</classname>
+						parameters that make up the vector.
+					</para>
 				</callout>
 				<callout arearefs='decl.instances'>
 								<para>
@@ -305,6 +355,12 @@ structarrayinstance Tb morestuff[20]  <co id='decl.structarrayinstance' />
 									<varname>d</varname> with some metadata (the units of these array
 									elements are <literal>furlongs</literal>).
 								</para>
+				</callout>
+				<callout arearefs='decl.vectorinstance'>
+					<para>
+						The <literal>vector</literal> keyword can also be used to declare a vector object.
+						These can be declared both with (as in the example) and without properties.
+					</para>
 				</callout>
 				<callout arearefs='decl.structinstance'>
 								<para>
@@ -348,14 +404,25 @@ structarrayinstance Tb morestuff[20]  <co id='decl.structarrayinstance' />
 				The header defines the structs and instances you've declared using the
 				data types expected by the analysis framework you chose as the target.
 				It also creates prototype definitions for a mimnimal set of functions
-			 for each framework.
-				The C++ executable, contains the actual storage for your instances, any
+				 for each framework.
+				The C++ files, contain the actual storage for your instances, any
 				executable code needed to support the instances and implementations of the
 				API functions.
 			</para>
 			<para>
+				It may help to understand that the genx command creates a pipeline
+				of processors.  The first stage of the pipline is the C preprocessor.
+				This is followed by a parser that creates an intermediate form from the 
+				output of the preprocessor.  This intermediate form is passed to 
+				a code generator for the seleted target.
+				The intermediate form is described more completely in the 
+				<link linkend='pgmpart' endterm='pgmpart.title' />
+			</para>
+			<para>
 				These two files will allow you to treat the instances as structs
-				and variables.
+				and variables in C++.  The API functions generated provide
+				standardized methods to do one time initialization, per-event preparation
+				and commitment of an event to the framework.
 			</para>
 			<para>
 				In this chapter we're not going to  look at the generated code but
@@ -573,7 +640,7 @@ void spec::Ta::Initialize(const char* basename)
 					Let's look at a more complex example:
 				</para>
 				<example>
-					<title>SpecTcl complex struct initialization - definition file:</title>
+					<title>SpecTcl complex struct initialization/construction - definition file:</title>
 					<programlisting>
 struct Tb {
     array a[10]
@@ -608,6 +675,7 @@ struct Tb {
    CTreeParameterArray a;
    CTreeParameterArray b;
    void Initialize(const char* basename);
+   Tb(const char* basename);
 };
 
 struct Tc {
@@ -616,6 +684,7 @@ struct Tc {
    CTreeParameter c;
    CTreeParameterArray d;
    void Initialize(const char* basename);
+   Tc(const char* basename);
 };
 
 ...
@@ -626,6 +695,11 @@ struct Tc {
 					Note how both structs have initialization methods defined.  Let's see
 					the code generated for the two <methodname>Initialize</methodname>
 					methods:
+				</para>
+				<para>
+					All structs also have constructors generated and appropriately invoked to 
+					create instances  of those structs.  Since the framework constructs
+					objects for you you don't really need to care about the constructors.
 				</para>
 				<example>
 					<title>SpecTcl complex struct initialization - C++ file</title>
@@ -661,6 +735,14 @@ void spec::Tc::Initialize(const char* basename)
 					structarray individually.
 				</para>
 				<para>
+					The main point to takeaway from this discussion is that objects are
+					given SpecTcl names that match their instance names, and that fields
+					of objects that are structs are giv en names like 
+					<replaceable>instancename.fieldname</replaceable>.  Objects that are
+					array follow the tree parameter array naming conventions as well even
+					if they are structs.
+				</para>
+				<para>
 					Finally, SpecTcl does not require any code for
 					<methodname>SetupEvent</methodname> as SpecTcl itself invalidates the
 					underlying parameters very efficiently (an O(1) algorithm).  Similarly
@@ -669,6 +751,7 @@ void spec::Tc::Initialize(const char* basename)
 					ball rolling by initializing all instances.  Those instances in turn,
 					if they are structs or structarrays will initialize their members.
 				</para>
+				
 				<para>
 					Here are the instance declarations:
 				</para>
@@ -716,11 +799,12 @@ void CommitEvent();
 				<para>
 					Note the <literal>#ifdef</literal> that brackets the instance declarations.
 					This is because the implementation file will actually define those objects
-					and C++ considers it an error to both declare an object as externa dn
+					and C++ considers it an error to both declare an object as extern and
 					define it locally.  Thus the C++ module will have a
 					<literal>#define IMPLEMENTATION_MODULE</literal> prior to including
 					the generated header.
 				</para>
+				
 				<para>
 					The header also declares the three API functions.
 				</para>
@@ -2981,6 +3065,7 @@ option "target" t "Code generation target" values="spectcl","root" enum
 													<type>InstanceType</type> is an enumerated type with legal values:
 													<literal>value</literal>, for scalar parameters,
 													<literal>array</literal>, for arrays of scalar parameters,
+													<literal>vector</literal>, for vectors.
 													<literal>structure</literal>, for a structure and
 													<literal>structarray</literal> for arrays of structures.
 												</para>
@@ -3005,7 +3090,8 @@ option "target" t "Code generation target" values="spectcl","root" enum
 													structure field represented by this struct.
 												</para>
 												<para>
-													for <literal>value</literal> or <literal>array</literal> instances
+													for <literal>value</literal>,
+													<literal>vector</literal> or <literal>array</literal> instances
 													and fields, <structfield>s_typename</structfield> is not used and
 													you cannot rely on it having any particular value.
 												</para>
@@ -3015,12 +3101,14 @@ option "target" t "Code generation target" values="spectcl","root" enum
 								<term><type>unsigned</type> <structfield>s_elementCount</structfield></term>
 								<listitem>
 												<para>
-													For <literal>array</literal> and <literal>structarray</literal>
+													For <literal>array</literal>,
+													and <literal>structarray</literal>
 													instances and fields, this contains the number of elements
 													 in the array.
 												</para>
 												<para>
-													For <literal>value</literal> and <literal>structure</literal>
+													For <literal>value</literal>,
+													<literal>vector</literal> and <literal>structure</literal>
 													fields and instances, this is unsused and you cannot rely on it
 													having any particular value.
 												</para>
@@ -3031,12 +3119,14 @@ option "target" t "Code generation target" values="spectcl","root" enum
 								<listitem>
 												<para>
 													This field contains metadata for the field/instance.  It only has
-													meaningful values for <literal>value</literal> and
+													meaningful values for <literal>value</literal>,
+													<literal>vector</literal> and
 													<literal>array</literal> instances and fields.   It may well be
-													that your generator cannot do anything with these values (
-													the SpecTcl generator uses this to initialize tree parameters whie
-													the Root generator ignores them
-													).
+													that your generator cannot do anything with these values.
+													Fore example, 
+													the SpecTcl generator uses this to initialize tree parameters 
+													properties, while
+													the Root generator ignores them.
 												</para>
 												
 								</listitem>
