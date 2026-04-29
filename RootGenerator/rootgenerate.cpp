@@ -303,7 +303,7 @@ generateHeader(
     
     f << "#ifndef " << baseFilename << "_h" <<  std::endl;
     f << "#define " << baseFilename << "_h" <<  std::endl;
-    f << "*include <vector>\n";
+    f << "#include <vector>\n";
     f << "#include <TObject.h>\n\n";
 
     
@@ -585,7 +585,7 @@ generateClearInstances(
         }
         // If scaler just a single statement otherwise generate a loop:
         
-        if ((p->s_type == value) || (p->s_type == structure)) {
+        if ((p->s_type == value) || (p->s_type == structure) || (p->s_type == vector)) {
             f << "   " << nsname << "::" << p->s_name << suffix << ";\n";
         } else {
             f << "   " << "for (int i = 0; i < " << p->s_elementCount << "; i++) {\n";
