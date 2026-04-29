@@ -8,3 +8,6 @@ all:
 
 install:
 	for f in $(SUBDIRS); do  (cd $$f;  make install  PREFIX=$(PREFIX)); done
+
+clean:
+	for f in $(SUBDIRS); do  (cd $$f;  make clean); done

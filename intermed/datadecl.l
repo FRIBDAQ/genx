@@ -20,6 +20,7 @@ extern unsigned lineNum;
 value           { return VALUE;}
 array           { return ARRAY;}
 struct          { return STRUCT;}
+vector          { return VECTOR;}
 structarray     { return STRUCTARRAY; }
 structinstance  { return STRUCTINSTANCE; }
 structarrayinstance {  return STRUCTARRAYINSTANCE; }

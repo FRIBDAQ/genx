@@ -45,7 +45,7 @@
 #include <string.h>
 #include <math.h>
 
-const char* programVersionString("rootgenerate version 1.0 (c) NSCL/FRIB");
+const char* programVersionString("rootgenerate version 2.0 (c) NSCL/FRIB");
 
 /**
  * usage
@@ -134,7 +134,9 @@ static void writeClassMembers(std::ostream& f, const FieldList& flist)
         if ((p->s_type == array) || (p->s_type == structarray)) {
             n = p->s_elementCount;
         }
-        
+        if (p->s_type == vector) {
+            fieldType = "std::vector<Double_t>";
+        }
         f << "   " << fieldType << " " << fieldName;
         if (n > 1) {
             f << "[" << n << "]";
@@ -217,6 +219,9 @@ writeInstanceDefs(std::ostream& f, const std::list<Instance>& instances)
         if ((p->s_type == array) || (p->s_type == structarray)) {
             n = p->s_elementCount;
         }
+        if (p->s_type == vector) {
+            fieldType = "std::vector<Double_t>";
+        }
         
         f << "   " << fieldType << " " << fieldName;
         if (n > 1) {
@@ -247,7 +252,9 @@ writeInstanceDefs(std::ostream& f, const std::list<Instance>& instances)
         if ((p->s_type == array) || (p->s_type == structarray)) {
             n = p->s_elementCount;
         }
-        
+        if (p->s_type == vector) {
+            fieldType = "std::vector<Double_t>";
+        }
         f << "   " << fieldType << " (&" << fieldName << ")";
         if (n > 1) {
             f << "[" << n << "]";
@@ -296,7 +303,9 @@ generateHeader(
     
     f << "#ifndef " << baseFilename << "_h" <<  std::endl;
     f << "#define " << baseFilename << "_h" <<  std::endl;
+    f << "#include <vector>\n";
     f << "#include <TObject.h>\n\n";
+
     
     // All of the file lives in the namespace:
     
@@ -375,6 +384,9 @@ generateResetImplementation(
         case array:
             rhs = " = NAN";
             break;
+        case vector:
+            f << "   " << p->s_name << ".clear();\n";
+            break;
         case structarray:
             rhs = ".Reset()";
             break;
@@ -436,7 +448,7 @@ implementClass(std::ostream& f, const std::string& nsname, const TypeDefinition&
       << nsname << "::" << type.s_typename << "& rhs) {\n";
     
     for (FieldList::const_iterator p = type.s_fields.begin(); p != type.s_fields.end(); p++) {
-        if ((p->s_type == value) || (p->s_type == structure)) {    // scalar:
+        if ((p->s_type == value) || (p->s_type == structure) || (p->s_type == vector)) {    // scalar:
             f << "   " << p->s_name << " = rhs." << p->s_name <<";\n";
         } else {                                                   // array gen forloop.
             f << "   for(int i = 0; i < " << p->s_elementCount << "; i++) { \n";
@@ -505,7 +517,9 @@ generateInstances(
         if ((p->s_type == array) || (p->s_type == structarray)) {
             n = p->s_elementCount;
         }
-        
+        if (p->s_type == vector) {
+            fieldType = "std::vector<Double_t>";
+        }
         f << "   " << fieldType << " " << fieldName;
         if (n > 1) {
             f << "[" << n << "]";
@@ -524,6 +538,9 @@ generateInstances(
         std::string typeName = "Double_t";        // Value and array:
         if ((p->s_type == structure) || (p->s_type == structarray)) {
             typeName =  p->s_typename;
+        }
+        if (p->s_type == vector) {
+            typeName = "std::vector<Double_t>";
         }
         // Do we need [size]?
         
@@ -563,9 +580,12 @@ generateClearInstances(
         if ((p->s_type == structure) || (p->s_type == structarray)) {
             suffix = ".Reset()";
         }
+        if (p->s_type == vector) {
+            suffix=".clear()";
+        }
         // If scaler just a single statement otherwise generate a loop:
         
-        if ((p->s_type == value) || (p->s_type == structure)) {
+        if ((p->s_type == value) || (p->s_type == structure) || (p->s_type == vector)) {
             f << "   " << nsname << "::" << p->s_name << suffix << ";\n";
         } else {
             f << "   " << "for (int i = 0; i < " << p->s_elementCount << "; i++) {\n";
@@ -577,7 +597,7 @@ generateClearInstances(
 /**
  * createBranchStructArray
  *     Creates the branches associated with an array of structs.
- *     We're going to make one branch per array element.  The namess of the
+ *     We're going to make one branch per array element.  The names of the
  *     branches will be instancename_nnn where nnn is the element number and
  *     has sufficient digits to maintain lexicographic sorting by indes number.
  *
@@ -623,6 +643,7 @@ createTree(
     
     for (std::list<Instance>::const_iterator p = instances.begin();
          p != instances.end(); p++) {
+        
         switch (p->s_type) {
         case value:
             f << "   " << nsname << "::pTheTree->Branch(\"" << p->s_name << "\", &"
@@ -639,6 +660,10 @@ createTree(
             f << "   " << nsname << "::pTheTree->Branch(\"" << p->s_name << "\", \""
               << nsname << "::" << p->s_typename << "\", &"
               << nsname << "::instanceStruct." << p->s_name << ");\n";
+            break;
+        case vector:
+            f << "    " << nsname << "::pTheTree->Branch(\"" << p->s_name << "\","
+                << "&" << nsname << "::instanceStruct." << p->s_name << ");\n";
             break;
         case structarray:          
             createBranchStructArray(f, nsname, *p);        // 'Array' of branches of structs.

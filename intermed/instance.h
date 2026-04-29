@@ -33,6 +33,7 @@
 enum InstanceType {
     value,
     array,
+    vector,
     structure,                    // struct is areserved word :-)
     structarray
 };

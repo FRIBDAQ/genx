@@ -29,7 +29,11 @@
 #include <math.h>
 
 
-const char* programVersionString("specgenerate version 1.0 (c) NSCL/FRIB");
+const char* programVersionString("specgenerate version 2.0 (c) NSCL/FRIB");
+
+static inline int computeDigits(int n) {
+    return (log10(n) + 1);
+}
 
 /**
  * usage:
@@ -86,6 +90,9 @@ writeFieldDefinition(std::ostream& f, const Instance& field)
     case array:
         f << "   CTreeParameterArray " << field.s_name << ";\n";
         break;
+    case vector:
+        f << "   CTreeParameterVector " << field.s_name << ";\n";
+        break;
     case structure:
         f << "   struct " << field.s_typename << " " << field.s_name << ";\n";
         break;
@@ -101,7 +108,7 @@ writeFieldDefinition(std::ostream& f, const Instance& field)
 /**
  * writeTypeDefinition
  *    Write a definition for a single type.  This is a struct whose fields
- *    are either CTreeParameter, CTreeParamterArrays, derived types or
+ *    are either CTreeParameter, CTreeParameterArrays, derived types or
  *    arrays of derived types:
  *
  *  @param f - stream to write to.
@@ -115,6 +122,9 @@ writeTypeDefinition(std::ostream& f, const TypeDefinition& t)
         writeFieldDefinition(f, *p);
     }
     f << "   void Initialize(const char* basename);\n";
+    // We need a constructor to deal with vectors:
+    f << "   " << t.s_typename << "(const char* basename);\n";
+
     f << "};\n\n";
 }
 
@@ -154,6 +164,9 @@ writeExternDecl(std::ostream& f, const Instance& i)
     case array:
         f << "CTreeParameterArray";
         break;
+    case vector:
+        f << "CTreeParameterVector";
+        break;
     case structure:
         f << "struct " << i.s_typename;
         break;
@@ -173,6 +186,7 @@ writeExternDecl(std::ostream& f, const Instance& i)
  *    Writes external instance declarations for each instance.
  *    values -> CTreeParameter
  *    array -> CTreeParameterArray
+ *    vector -> CTreeParameterVector
  *    structs -> struct
  *    structarray -> array of structs.
  *
@@ -251,6 +265,7 @@ static void generateHeader(
     f << "#ifndef " << baseFileName << "_h\n";  // Include guard.
     f << "#define " << baseFileName << "_h\n";
     f << "#include <TreeParameter.h>\n";   // We're generating tree parameter types.
+    f << "#include <CTreeParameterVector.h>\n"; // We're using tree paramter vector (issue #1)
    
     // Everything we create is inside a namespace: nsname:
     
@@ -282,7 +297,7 @@ emitStructArrayInitialization(std::ostream& f, const Instance& i)
 {
     // Figure out how many digits of 'index' we need:
     
-    int digits = (log10(i.s_elementCount) + 1);
+    int digits = computeDigits(i.s_elementCount);
     
     // Initialize in a for loop.
     
@@ -334,6 +349,12 @@ emitFieldInitialization(std::ostream& f, const Instance& i)
         f << "   " << i.s_name << ".Initialize((name + '.' + \"" << i.s_name << "\").c_str()"
         << ");\n";
         break;
+    case vector:
+        f << "    " << i.s_name << ".setLow(" << i.s_options.s_low << ");\n";
+        f << "    " << i.s_name << ".setHigh(" << i.s_options.s_high << ");\n";
+        f << "    " << i.s_name << ".setBins(" << i.s_options.s_bins << ");\n";
+        f << "    " << i.s_name << ".setUnits(\"" << i.s_options.s_units << "\");\n";
+        break;
     case structarray:
         emitStructArrayInitialization(f, i);
         break;
@@ -343,6 +364,7 @@ emitFieldInitialization(std::ostream& f, const Instance& i)
         exit(EXIT_FAILURE);
     }
 }
+
 /**
  * emitInitializeMethods
  *     Writes the Initialize method for each data type.
@@ -372,6 +394,7 @@ emitInitializeMethods(
         
         
         f << "}\n";
+        
     }
 }
 /*
@@ -391,19 +414,45 @@ emitInstance(std::ostream& f, const Instance& i, const std::string& ns)
         break;
     case array:
         f << "CTreeParameterArray ";
+        f  << i.s_name << "(\"" << i.s_name << "\", " << i.s_elementCount << ", 0);\n";
+        return;
+    case vector:
+        f << "CTreeParameterVector " ;
+        
         break;
     case structure:
         f << "struct " << i.s_typename << " ";
         break;
     case structarray:
-        f << "struct " << i.s_typename << " "  << i.s_name << "[" << i.s_elementCount << "];\n";
+        {
+            // For struct arrays we need to provid an initializer
+            // for all elmements of the array.  We'll
+            // provide the basename.n where n is the index
+            f << "struct " << i.s_typename << " "  << i.s_name << "[" << i.s_elementCount << "] = {\n";
+            int digits = computeDigits(i.s_elementCount);
+            char index[100];
+            char formatString[100];
+            sprintf(formatString, "%%0%dd", digits);
+            
+            for (int n = 0; n < i.s_elementCount; n++) {
+                sprintf(index, formatString, n);
+                f << i.s_typename << "(\"" << i.s_name << "." << index << "\")";
+                if (n+1 < i.s_elementCount) {
+                    // not last so emit a comma
+                    f << ",";
+                }
+                f << std::endl;
+                
+            }        
+            f << "};\n";
+        }
         return;                              // can't fall throgh.
     default:
         std::cerr << "**BUG - unrecognized instance type: " << i.s_type <<std::endl;
         std::cerr << i.toString() <<std::endl;
         exit(EXIT_FAILURE);
     }
-    f  << i.s_name << ";\n";
+    f  << i.s_name << "(\"" << i.s_name << "\");\n";  // Construct with name.
 }
 /**
  * emitInstances
@@ -434,7 +483,7 @@ emitInstances(std::ostream& f, const std::list<Instance>& instances, const std::
 static void
 initStructArrayInstance(std::ostream& f, const Instance& i, const std::string& ns)
 {
-    int digits = log10(i.s_elementCount) + 1;  // Number of digits in an index.
+    int digits = computeDigits(i.s_elementCount);  // Number of digits in an index.
     
     f << "   for (int i = 0; i < " << i.s_elementCount << "; i++) \n";
     f << "   {\n";
@@ -474,6 +523,12 @@ initInstance(std::ostream& f, const Instance& i, const std::string& ns)
           << "\"" << i.s_options.s_units << "\", "
           << i.s_elementCount << ", 0);\n";
         break;
+    case vector:
+        f << "   " << ns << "::" << i.s_name << ".setLow(" << i.s_options.s_low << ");\n";
+        f << "   " << ns << "::" << i.s_name << ".setHigh(" << i.s_options.s_high << ");\n";
+        f << "   " << ns << "::" << i.s_name << ".setBins(" << i.s_options.s_bins << ");\n";
+        f << "   " << ns << "::" << i.s_name << ".setUnits(\"" << i.s_options.s_units <<"\");\n";
+        break;
     case structure:
         f << "  " << ns << "::" << i.s_name << ".Initialize("
           << "\"" << i.s_name << "\");\n";
@@ -485,6 +540,86 @@ initInstance(std::ostream& f, const Instance& i, const std::string& ns)
         std::cerr << "*BUG unrecognized instance type: " << i.s_type << std::endl;
         std::cerr << i.toString() << std::endl;
         exit(EXIT_FAILURE);
+    }
+}
+/**
+ * emitSarrayInitializer
+ *    Emit the initializers of a structure array element in a struct.
+ *    This has formal parameters rather than actual parameterization.
+ * 
+ * @param f    - the output stream we're generating code into.
+ * @param inst - references the field instance description caller ensures it's of type 
+ *               structarray.
+ * @param basename - This is a string that constructs the base name of the array elements.
+ *                   it's something like "(std::string(basename) + fieldname)"
+ *                   where fieldname is the name of our field.  Elements will
+ *                   have names that look like:
+ *                    "(((std::string(basename) + fieldname)).n).c_str()" where n is a multidigit
+ *                   index number of an element. The number of digits is computed by 
+ *                   computeDigits() above.
+ * 
+ * What we do is generate a field initializer for a constructor that is of the form
+ *   {typename(indexname), ...}  In our case for readbility, we make each
+ *   initialization inside the {} on one line.  The caller will put a ",\n" at the
+ *   end of our initialization.
+ */
+static void 
+emitSArrayInitializer(std::ostream& f, const Instance& inst, const std::string& basename) {
+    int ndigits = computeDigits(inst.s_elementCount);
+    f << inst.s_name << "{\n";
+        for (int index = 0; index < inst.s_elementCount; index++) {
+            char indexString[1000];
+            sprintf(indexString, "%0*d", ndigits, index);
+            f << inst.s_typename << "((" << basename << " + \"." << indexString <<"\").c_str()),\n";
+        }
+    f << "}";
+}
+/**
+ * emitConstructors
+ *   Structs need explicit constructors to be able to handle tree parameter vector initialization.
+ *   We iterate through the types providing constructors for each struct type:
+ * 
+ *    @param f - stream on which output is done
+ *    @param types - Type definitions.
+ *    @param ns- namespace our definitions live in.
+ * @note  each struct defines a constructor so we can recursively construct those as well.
+ * 
+ */
+static void
+emitConstructors(std::ostream& f, const std::list<TypeDefinition>& types, const std::string& ns) {
+    for (const auto& t : types) {
+        // Emit the constructor for the type:
+
+        f << "// constructor for: " << t.s_typename << std::endl << std::endl;
+        f << ns << "::" << t.s_typename << "::" << t.s_typename << "(const char* basename) : " << std::endl;
+        for (const auto& field : t.s_fields) {
+            //Initialize the fields/substructures:
+            // We assume everything can be initialized with the name that
+            // With the exception of struct arrays, all fields initialize simply with the
+            // basename.  Arrays require a {} set of initializers like the instance
+            // construction of a struct array.
+            // arrays need the size in the tree parameter arra constructor.
+           
+            std::string fname="(std::string(basename) + \".";
+            fname += field.s_name;
+            fname += "\")";
+            if (field.s_type == structarray) {
+                emitSArrayInitializer(f, field, fname);
+            } else if (field.s_type == array) {
+                f << field.s_name << "(" << fname << ".c_str(), " << field.s_elementCount << ", 0)";
+            } else {
+                f << field.s_name << "(" << fname << ".c_str())";
+            }
+            // If this is not the last field, emit ,\n otherwise just an \n
+            if (field.s_name != t.s_fields.back().s_name) {
+                f << ",\n";
+            } else {
+                f << "\n";
+            }
+
+        }
+        
+        f << "{}\n";
     }
 }
 /**
@@ -560,6 +695,9 @@ generateCPP(
     
     f << "\n/** Implementation of initialization methods */\n\n";
     emitInitializeMethods(f, nsname, types);
+
+    f << "\n/** Implementation of  constructors -- where needed. */\n\n";
+    emitConstructors(f, types, nsname);
     
     f << "\n/** Implementation of the API functions */ \n\n";
     emitApi(f, instances, nsname);
